@@ -10,7 +10,7 @@ from PyGMIMAP import PyGMIMAPMgr
 if __name__ == '__main__':
 	# Init SQLMgr
 	sqlMgr = PyGMSQLiteMgr()
-	print sqlMgr.Connect()
+	sqlMgr.Connect()
 	
 	imapMgr = PyGMIMAPMgr(sqlMgr)
 	imapMgr.getIMAPServers()

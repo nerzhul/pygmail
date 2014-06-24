@@ -4,6 +4,33 @@ import sqlite3
 
 from PyGMConfig import PyGMailConfig
 
+class PyGMDBObj:
+	_sqlMgr = None
+	_sqlTable = ""
+	_idName = ""
+	
+	def __init__(self,sqlMgr):
+		self._sqlMgr = sqlMgr
+		self._sqlTable = ""
+		self._idName = ""
+		
+	def CreateTable(self):
+		print "Method not implemented"
+		return 99
+		
+	def CreateTableIfNotExists(self):
+		try:
+			self._sqlMgr._cursor.execute('SELECT %s FROM %s' % (self._idName,self._sqlTable))
+			return 0
+		except Exception, e:
+			try:
+				return self.CreateTable()
+			except Exception, e:
+				print e
+				return 3
+				
+			return 2
+
 class PyGMSQLiteMgr:
 	_conn = None
 	_cursor = None
@@ -15,46 +42,43 @@ class PyGMSQLiteMgr:
 		try:
 			self._conn = sqlite3.connect(PyGMailConfig.userDBPath)
 			self._cursor = self._conn.cursor()
-			return self.CheckTables()
+			ret = self.CheckTables()
+			return ret
 		except Exception, e:
 			self._conn = None
 			return 1
 	
+	# Check DB
 	def CheckTables(self):
-		# Check DB consistency
-		ret = self.CreateTableIfNotExists("accounts","acctid")
-		if ret != 0:
-			return ret
-			
-		return 0
+		# import all needed objects
+		from PyGMIMAP import IMAPServer
 		
-	def CreateTableIfNotExists(self,tablename,field):
-		try:
-			self._cursor.execute('SELECT %s FROM %s' % (field,tablename))
-			return 0
-		except Exception, e:
-			try:
-				if tablename == "accounts":
-					self._cursor.execute("CREATE TABLE accounts(acctid INTEGER PRIMARY KEY AUTOINCREMENT,acctlabel VARCHAR(64), imapserver VARCHAR(128), imapport INT, imappasswd VARCHAR(4096))")
-				else:
-					return 4
-				return 0
-			except Exception, e:
-				print e
-				return 3
-				
-			return 2
-	
-	def Fetch(self, request, values = None):
+		# Now iterate and create the missing tables
+		sqlObjs = [IMAPServer(self)]
+		for obj in sqlObjs:
+			ret = obj.CreateTableIfNotExists()
+			if ret != 0:
+				return ret
+		
+		# Commit modifications
+		self.Commit()
+		return 0
+			
+	def ExecQuery(self, request, values = None):
 		if values != None:
 			self._cursor.execute(request, values)
 		else:
 			self._cursor.execute(request)
+	
+	def Fetch(self, request, values = None):
+		self.ExecQuery(request,values)
 		return self._cursor.fetchall()
 	
 	def FetchOne(self, request, values = None):
-		if values != None:
-			self._cursor.execute(request, values)
-		else:
-			self._cursor.execute(request)
+		self.ExecQuery(request,values)
 		return self._cursor.fetchone()
+
+	def Commit(self):
+		print "test"
+		self._conn.commit()
+
