@@ -7,9 +7,12 @@ class MainWindow(Gtk.Window):
 	myGrid = None
 	mainWrapper = None
 	myHeaderBar = None
+	_sqlMgr = None
 	
-	def __init__(self):
+	def __init__(self,sqlMgr):
 		Gtk.Window.__init__(self, title=PyGMailConfig.getAppNameAndVersion())
+		
+		_sqlMgr = sqlMgr
 
 		# Window options
 		self.set_border_width(10)

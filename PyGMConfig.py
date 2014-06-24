@@ -3,6 +3,7 @@
 class PyGMailConfig:
 	appName = "PyGMail"
 	appVersion = "0.0.1"
+	userDBPath = "/tmp/pygmail.sqlite"
 	
 	@staticmethod
 	def getAppNameAndVersion():
