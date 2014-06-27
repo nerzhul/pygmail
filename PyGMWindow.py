@@ -9,6 +9,8 @@ class MainWindow(Gtk.Window):
 	myHeaderBar = None
 	_sqlMgr = None
 	
+	_toKillThreads = []
+	
 	def __init__(self,sqlMgr):
 		Gtk.Window.__init__(self, title=PyGMailConfig.getAppNameAndVersion())
 		
@@ -51,9 +53,21 @@ class MainWindow(Gtk.Window):
 		self.setFooterText("Initialization complete")
 
 	def closeWindow(self,_window,_event):
+		self.killAllRunningThreads()
 		Gtk.main_quit()
 
 	def setFooterText(self,_text):
 		context = self.footerBar.get_context_id("example")
 		self.footerBar.pop(context)
 		self.footerBar.push(context, "%s" % _text)
+	
+	# We bufferize pointer to running threads
+	def addThreadToKill(self,thread):
+		if thread not in self._toKillThreads:
+			self._toKillThreads +=  [thread,]
+
+	# When main windows is closed, we need to kill all threads
+	def killAllRunningThreads(self):
+		for thread in self._toKillThreads:
+			thread._Thread__stop()
+		

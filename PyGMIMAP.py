@@ -24,7 +24,6 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		self._sqlMgr = PyGMSQL.PyGMSQLiteMgr()
 		self._sqlMgr.Connect()
 		
-		
 		while True:
 			self.setRunning(True)
 			self.loadIMAPServers()
