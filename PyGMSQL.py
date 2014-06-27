@@ -79,6 +79,5 @@ class PyGMSQLiteMgr:
 		return self._cursor.fetchone()
 
 	def Commit(self):
-		print "test"
 		self._conn.commit()
 
