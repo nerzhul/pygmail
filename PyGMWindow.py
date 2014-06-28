@@ -20,15 +20,22 @@
 
 from gi.repository import Gtk
 from PyGMConfig import PyGMailConfig
-import threading
+from PyGMIMAP import PyGMIMAPMgr
+import threading, re
 
 class MainWindow(Gtk.Window):
 	# Interface stores
 	myGrid = None
 	mainWrapper = None
 	_headerBar = None
+	
+	# mailbox list
 	_mailboxTreeView = None
 	mbTreeViewLock = threading.Lock()
+	
+	# mail list
+	_maillistTreeView = None
+	mlTreeViewLock = threading.Lock()
 	
 	# Status of the GTK window
 	readyLock = threading.Lock()
@@ -45,6 +52,7 @@ class MainWindow(Gtk.Window):
 		# Init mutexes
 		self.readyLock = threading.Lock()
 		self.mbTreeViewLock = threading.Lock()
+		self.mlTreeViewLock = threading.Lock()
 
 		# Window options
 		self.set_border_width(10)
@@ -71,25 +79,8 @@ class MainWindow(Gtk.Window):
 		self.mainWrapper.attach(self.footerBar,0,2,1,1)
 		self.setFooterText("Initialization in progress...")
 
-		self.label = Gtk.Label(label="Hello World", halign=Gtk.Align.END)
-		
-		# TreeStore(Label,LeafType,Value (serverId or real IMAP Path))
-		mailboxTreeStore = Gtk.TreeStore(str,int,str)
-
-		self.mbTreeViewLock.acquire()
-		self._mailboxTreeView = Gtk.TreeView(mailboxTreeStore)
-		renderer = Gtk.CellRendererText()
-		self._mainTreeViewCol = Gtk.TreeViewColumn("Boîte de réception", renderer, text=0)
-		self._mailboxTreeView.append_column(self._mainTreeViewCol)
-		self.mbTreeViewLock.release()
-		
-		# Attach elements to grid
-		mbtvScroll = Gtk.ScrolledWindow()
-		mbtvScroll.add(self._mailboxTreeView)
-		mbtvScroll.set_hexpand(True)
-		mbtvScroll.set_vexpand(True)
-		
-		self.myGrid.attach(scrollWindow,1,0,1,1)
+		self.createMailboxTreeView()
+		self.createMaillistTreeView()
 
 		# Events
 		self.connect("delete-event", self.closeWindow)
@@ -120,12 +111,55 @@ class MainWindow(Gtk.Window):
 		for thread in self._toKillThreads:
 			thread._Thread__stop()
 		
-	# Some get helpers
+	"""
+	Mailbox Treeview
+	"""
+	
 	def getMailboxGTKStore(self):
 		self.mbTreeViewLock.acquire()
 		model = self._mailboxTreeView.get_model()
 		self.mbTreeViewLock.release()
 		return model
+	
+	def createMailboxTreeView(self):
+		# TreeStore(Label,LeafType,Value (serverId or real IMAP Path))
+		mailboxTreeStore = Gtk.TreeStore(str,int,str)
+
+		self.mbTreeViewLock.acquire()
+		self._mailboxTreeView = Gtk.TreeView(mailboxTreeStore)
+		
+		# Table columns
+		renderer = Gtk.CellRendererText()
+		mbTreeViewCol = Gtk.TreeViewColumn("Boîte de réception", renderer, text=0)
+		self._mailboxTreeView.append_column(mbTreeViewCol)
+		
+		# Event handler
+		select = self._mailboxTreeView.get_selection()
+		select.connect("changed", self.onMailboxSelectionChanged)
+		
+		self.mbTreeViewLock.release()
+		
+		# Attach elements to grid
+		mbtvScroll = Gtk.ScrolledWindow()
+		mbtvScroll.add(self._mailboxTreeView)
+		mbtvScroll.set_hexpand(True)
+		mbtvScroll.set_vexpand(True)
+		
+		self.myGrid.attach(mbtvScroll,1,0,1,1)
+
+	def onMailboxSelectionChanged(self,selection):
+		model, treeiter = selection.get_selected()
+		mbSplit = re.split("-",model[treeiter][2])
+		
+		if len(mbSplit) >= 2:
+			serverId = mbSplit[0]
+			mbName = ""
+			for idx in range(1,len(mbSplit)):
+				mbName += mbSplit[idx]
+			
+			imapMgr = PyGMIMAPMgr()	
+			imapMgr.setMainWindow(self)
+			imapMgr.loadMailboxMails(serverId,mbName)
 		
 	def addElemToMBTreeView(self,parent,el):
 		self.mbTreeViewLock.acquire()
@@ -133,6 +167,55 @@ class MainWindow(Gtk.Window):
 		self.mbTreeViewLock.release()
 		return treeIter
 		
+	"""
+	Maillist Treeview
+	"""
+	
+	def createMaillistTreeView(self):
+		# TreeStore(Label,LeafType,Value (serverId or real IMAP Path))
+		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str)
+
+		self.mlTreeViewLock.acquire()
+		self._maillistTreeView = Gtk.TreeView(maillistTreeStore)
+
+		# Table columns
+		renderer = Gtk.CellRendererText()
+		mlTreeViewCol = Gtk.TreeViewColumn("R", renderer, text=0)
+		self._maillistTreeView.append_column(mlTreeViewCol)
+		mlTreeViewCol = Gtk.TreeViewColumn("U", renderer, text=0)
+		self._maillistTreeView.append_column(mlTreeViewCol)
+		mlTreeViewCol = Gtk.TreeViewColumn("De", renderer, text=0)
+		self._maillistTreeView.append_column(mlTreeViewCol)
+		mlTreeViewCol = Gtk.TreeViewColumn("Objet", renderer, text=0)
+		self._maillistTreeView.append_column(mlTreeViewCol)
+		mlTreeViewCol = Gtk.TreeViewColumn("Date", renderer, text=0)
+		self._maillistTreeView.append_column(mlTreeViewCol)
+		
+		# Event handler
+		select = self._maillistTreeView.get_selection()
+		select.connect("changed", self.onMaillistSelectionChanged)
+		
+		self.mlTreeViewLock.release()
+		
+		# Attach elements to grid
+		mltvScroll = Gtk.ScrolledWindow()
+		mltvScroll.add(self._maillistTreeView)
+		mltvScroll.set_hexpand(True)
+		mltvScroll.set_vexpand(True)
+		
+		self.myGrid.attach(mltvScroll,2,0,1,1)
+	
+	def onMaillistSelectionChanged(self,selection):
+		model, treeiter = selection.get_selected()
+		print model
+	
+	def addElemToMLTreeView(self,parent,el):
+		self.mbTreeViewLock.acquire()
+		treeIter = self._maillistTreeView.get_model().append(parent,el)
+		self.mbTreeViewLock.release()
+		return treeIter
+		
+	# Window loading state
 	def isWindowReady(self):
 		self.readyLock.acquire()
 		ready = self.isReady

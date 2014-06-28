@@ -1,6 +1,24 @@
-#! /usr/bin/python2.7
+# -*- coding: utf-8 -*-
 
-import imaplib, re, time
+"""
+* Copyright (C) 2014 Loïc BLOT, UNIX Experience <http://www.unix-experience.fr/>
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+"""
+
+import imaplib, re, time, email, email.header
 import PyGMSQL, PyGMThread
 
 class IMAPTreeViewType():
@@ -56,10 +74,37 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 					if self.findAccountInTreeView(serverId) == None:
 						serverIter = self._mainWin.addElemToMBTreeView(None,[imapServer._serverAddr,IMAPTreeViewType.account,"%s" % serverId])
 						self.renderMailboxes(imapServer,serverIter)
-						
+	
+	def loadMailboxMails(self,serverId,mbName):
+		# Connect to SQLite DB
+		self._sqlMgr = PyGMSQL.PyGMSQLiteMgr()
+		self._sqlMgr.Connect()
+		
+		imapServer = None
+		if serverId not in self._imapServers:
+			self._imapServers[serverId] = IMAPServer(self._sqlMgr)
+		
+		imapServer = self._imapServers[serverId]
+		print serverId
+		if imapServer.Load(serverId) == 0:
+			print mbName
+			if imapServer.Connect() == 0:
+				print mbName
+				if imapServer.Login() == 0:
+					print mbName
+					mailList = imapServer.getAllMailsFromMailbox(mbName)
+					for mailId in mailList:
+						# GTK things
+						emailMsg = email.message_from_string(mailList[mailId])
+						#print email.header.decode_header(emailMsg["Subject"])
+						#serverIter = self._mainWin.addElemToMLTreeView(None,[0,0,emailMsg["From"],emailMsg["Subject"],"%s" % serverId])
+				
 	def findAccountInTreeView(self,acctid):
 		store = self._mainWin.getMailboxGTKStore()
 		
+		if store == None:
+			return None
+			
 		mbtsIter = store.get_iter_first()
 		while mbtsIter != None:
 			if store[mbtsIter][1] == IMAPTreeViewType.account and store[mbtsIter][2] == acctid:
@@ -121,8 +166,8 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 					if idx2 != mbNameIdx-1:
 						mbPathParentTmp += "."
 				
-				uniqPath = "%s-%s" % (imapServer._serverAddr, mbPathTmp)
-				uniqParentPath = "%s-%s" % (imapServer._serverAddr, mbPathParentTmp)
+				uniqPath = "%s-%s" % (imapServer._id, mbPathTmp)
+				uniqParentPath = "%s-%s" % (imapServer._id, mbPathParentTmp)
 				if uniqPath not in renderedMailboxes:
 					mbIter = self.findMailBoxInTreeView(uniqPath)
 					
@@ -182,7 +227,10 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 			return ret
 			
 	def Load(self,serverId):
-		res = self._sqlMgr.FetchOne("SELECT acctlabel, login, serveraddr, serverport, serverssl FROM %s WHERE %s = %s" % (self._sqlTable, self._idName, serverId))
+		try:
+			res = self._sqlMgr.FetchOne("SELECT acctlabel, login, serveraddr, serverport, serverssl FROM %s WHERE %s = %s" % (self._sqlTable, self._idName, serverId))
+		except:
+			return 1
 		
 		self._id = serverId
 		self._label = res[0]
@@ -194,6 +242,8 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 			self._ssl = True
 		else:
 			self._ssl = False
+		
+		return 0
 	
 	def Connect(self):
 		try:
@@ -240,3 +290,26 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 		
 		return mbList[1]
 		
+	def getAllMailsFromMailbox(self,mbName):
+		try:
+			self._imapConn.select(mbName)
+		except imaplib.IMAP4.error, e:
+			self.logCritical(e)
+			return None
+		
+		result, data = self._imapConn.uid('search', None, "ALL")
+		if result != "OK":
+			self.logCritical("getAllMailsFromMailbox returned %s" % result)
+			return None
+		
+		mailIdList = data[0].split()
+
+		mailList = {}
+		for mailId in mailIdList:
+			result, data = self._imapConn.uid('fetch', mailId, '(RFC822)')
+			if result != "OK":
+				self.logCritical("getAllMailsFromMailbox. Fetching mailid %s returned %s" % (mailId,result))
+			else:
+				mailList[mailId] = data[0][1]
+		
+		return mailList
