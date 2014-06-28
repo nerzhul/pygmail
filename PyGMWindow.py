@@ -248,6 +248,9 @@ class MainWindow(Gtk.Window):
 	
 	def onMaillistSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
+		if model == None:
+			return
+			
 		mailId = model[treeiter][5]
 		mboxName = model[treeiter][6]
 		serverId = model[treeiter][7]

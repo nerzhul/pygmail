@@ -324,18 +324,19 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 		
 		return mbList[1]
 		
-	def getMailsFromMailbox(self,mbName,headerOnly = False,uidList = "ALL"):
+	def getMailsFromMailbox(self,mbName,headerOnly = False, uidList = None):
 		try:
 			self._imapConn.select(mbName)
 		except imaplib.IMAP4.error, e:
 			self.logCritical(e)
 			return None
+
+		imapFilter = "ALL"
 		
-		# If not all mails are asked, we precise a mail list
-		if uidList != "ALL":
-			uidList = "(UID %s)" % uidList
-			
-		result, data = self._imapConn.uid('search', None, uidList)
+		if uidList != None:
+			imapFilter = "(UID %s)" % uidList
+		
+		result, data = self._imapConn.uid('search', None, imapFilter)
 		if result != "OK":
 			self.logCritical("getMailsFromMailbox returned %s" % result)
 			return None
@@ -353,6 +354,11 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 			if result != "OK":
 				self.logCritical("getMailsFromMailbox. Fetching mailid %s returned %s" % (mailId,result))
 			else:
+				# Get mail flags
+				result, flagsData = self._imapConn.uid('fetch', mailId, "(FLAGS)")
+				print flagsData[0]
+				if re.match("\\Seen",flagsData[0]):
+					print "SEEN !!"
 				mailList[mailId] = data[0][1]
 		
 		return mailList
