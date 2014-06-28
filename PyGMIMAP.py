@@ -86,18 +86,48 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 			self._imapServers[serverId] = IMAPServer(self._sqlMgr)
 		
 		imapServer = self._imapServers[serverId]
-		if imapServer.Load(serverId) == 0:
-			if imapServer.Connect() == 0:
-				if imapServer.Login() == 0:
-					mailList = imapServer.getAllMailsFromMailbox(mbName)
-					for mailId in mailList:
-						# GTK things
-						emailMsg = PyGMMail.PyGMEmail(mailList[mailId])
-						mailIter = self._mainWin.addElemToMLTreeView(None,[1,2,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate()])
+		if imapServer.Load(serverId) == 0 and imapServer.Connect() == 0 and imapServer.Login() == 0:
+			mailList = imapServer.getMailsFromMailbox(mbName,True)
+			for mailId in mailList:
+				# Load mail and save it to local database
+				emailMsg = PyGMMail.PyGMEmail(mailList[mailId],self._sqlMgr)
+				emailMsg._mailId = mailId
+				emailMsg._mailbox = mbName
+				emailMsg._serverId = serverId
+				mailIter = self._mainWin.addElemToMLTreeView(None,[1,2,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate(),mailId,mbName,serverId])
+				#emailMsg.Save()
 		
 		self._mainWin.removeFooterText()
 		self._sqlMgr.close()
-				
+	
+	def loadMail(self,serverId,mbName,mailId):
+		# Connect to SQLite DB
+		self._sqlMgr = PyGMSQL.PyGMSQLiteMgr()
+		self._sqlMgr.Connect()
+		
+		res = None
+		
+		imapServer = None
+		if serverId not in self._imapServers:
+			self._imapServers[serverId] = IMAPServer(self._sqlMgr)
+		
+		imapServer = self._imapServers[serverId]
+		
+		self._mainWin.setFooterText("Loading mail %s from mailbox %s" % (mailId,mbName))
+		
+		if imapServer.Load(serverId) == 0 and imapServer.Connect() == 0 and imapServer.Login() == 0:
+			mailList = imapServer.getMailsFromMailbox(mbName,False,mailId)
+			emailMsg = PyGMMail.PyGMEmail(mailList[mailId],self._sqlMgr)
+			emailMsg._mailId = mailId
+			emailMsg._mailbox = mbName
+			emailMsg._serverId = serverId
+			res = emailMsg
+			
+		self._mainWin.removeFooterText()
+		self._sqlMgr.close()
+		
+		return res
+			
 	def findAccountInTreeView(self,acctid):
 		store = self._mainWin.getMailboxGTKStore()
 		
@@ -289,16 +319,45 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 		
 		return mbList[1]
 		
-	def getAllMailsFromMailbox(self,mbName):
+	def getMailsFromMailbox(self,mbName,headerOnly = False,uidList = "ALL"):
+		try:
+			self._imapConn.select(mbName)
+		except imaplib.IMAP4.error, e:
+			self.logCritical(e)
+			return None
+			
+		result, data = self._imapConn.uid('search', None, uidList)
+		if result != "OK":
+			self.logCritical("getMailsFromMailbox returned %s" % result)
+			return None
+		
+		mailIdList = data[0].split()
+
+		mailList = {}
+		for mailId in mailIdList:
+			# If filter is set to false, only get headers
+			imapFilter = "(RFC822)"
+			if headerOnly == True:
+				imapFilter = "(BODY[HEADER])"
+			
+			result, data = self._imapConn.uid('fetch', mailId, imapFilter)
+			if result != "OK":
+				self.logCritical("getMailsFromMailbox. Fetching mailid %s returned %s" % (mailId,result))
+			else:
+				mailList[mailId] = data[0][1]
+		
+		return mailList
+	
+	def getUnreadMailsFromMailbox(self,mbName):
 		try:
 			self._imapConn.select(mbName)
 		except imaplib.IMAP4.error, e:
 			self.logCritical(e)
 			return None
 		
-		result, data = self._imapConn.uid('search', None, "ALL")
+		result, data = self._imapConn.uid('search', None, "(UNSEEN)")
 		if result != "OK":
-			self.logCritical("getAllMailsFromMailbox returned %s" % result)
+			self.logCritical("getUnreadMailsFromMailbox returned %s" % result)
 			return None
 		
 		mailIdList = data[0].split()
@@ -307,7 +366,7 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 		for mailId in mailIdList:
 			result, data = self._imapConn.uid('fetch', mailId, '(RFC822)')
 			if result != "OK":
-				self.logCritical("getAllMailsFromMailbox. Fetching mailid %s returned %s" % (mailId,result))
+				self.logCritical("getUnreadMailsFromMailbox. Fetching mailid %s returned %s" % (mailId,result))
 			else:
 				mailList[mailId] = data[0][1]
 		

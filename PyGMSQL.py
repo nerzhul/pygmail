@@ -33,6 +33,14 @@ class PyGMDBObj:
 				
 			return 2
 	
+	def Load(self,objId):
+		print "Method not implemented"
+		return 99
+	
+	def Save(self):
+		print "Method not implemented"
+		return 99
+		
 	def logDebug(self, msg):
 		self.logger.debug("%s: %s" % (self.myName,msg))
 	
@@ -71,9 +79,10 @@ class PyGMSQLiteMgr:
 	def CheckTables(self):
 		# import all needed objects
 		from PyGMIMAP import IMAPServer
+		from PyGMMail import PyGMEmail
 		
 		# Now iterate and create the missing tables
-		sqlObjs = [IMAPServer(self)]
+		sqlObjs = [IMAPServer(self),PyGMEmail("",self)]
 		for obj in sqlObjs:
 			ret = obj.CreateTableIfNotExists()
 			if ret != 0:

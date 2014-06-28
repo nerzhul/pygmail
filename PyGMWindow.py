@@ -21,6 +21,7 @@
 from gi.repository import Gtk, Gio
 from PyGMConfig import PyGMailConfig
 from PyGMIMAP import PyGMIMAPMgr
+import PyGMMail
 import threading, re
 
 class MainWindow(Gtk.Window):
@@ -55,12 +56,13 @@ class MainWindow(Gtk.Window):
 	def __init__(self,sqlMgr):
 		Gtk.Window.__init__(self, title=PyGMailConfig.getAppNameAndVersion())
 		
-		_sqlMgr = sqlMgr
+		self._sqlMgr = sqlMgr
 		
 		# Init mutexes
 		self.readyLock = threading.Lock()
 		self.mbTreeViewLock = threading.Lock()
 		self.mlTreeViewLock = threading.Lock()
+		self.mTextViewLock = threading.Lock()
 		self.footerLock = threading.Lock()
 
 		# Window options
@@ -100,8 +102,6 @@ class MainWindow(Gtk.Window):
 		self.isReady = True
 		self.readyLock.release()
 
-	
-		
 	def closeWindow(self,_window,_event):
 		self.killAllRunningThreads()
 		Gtk.main_quit
@@ -195,7 +195,7 @@ class MainWindow(Gtk.Window):
 	
 	def createMaillistTreeView(self):
 		# TreeStore(Label,LeafType,Value (serverId or real IMAP Path))
-		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str)
+		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str,str,str,str)
 
 		self.mlTreeViewLock.acquire()
 		self._maillistListView = Gtk.TreeView(maillistTreeStore)
@@ -237,7 +237,16 @@ class MainWindow(Gtk.Window):
 	
 	def onMaillistSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
-		print model
+		mailId = model[treeiter][5]
+		mboxName = model[treeiter][6]
+		serverId = model[treeiter][7]
+		
+		# we need an imapManager to get the mail
+		imapMgr = PyGMIMAPMgr()
+		imapMgr.setMainWindow(self)
+		
+		mailObj = imapMgr.loadMail(serverId,mboxName,mailId)
+		self.setMailViewText(mailObj.getBody())
 	
 	def addElemToMLTreeView(self,parent,el):
 		self.mbTreeViewLock.acquire()
@@ -251,13 +260,15 @@ class MainWindow(Gtk.Window):
 		mailScroll.set_vexpand(True)
 	
 		self._mailTextView = Gtk.TextView()
-		textbuffer = self._mailTextView.get_buffer()
-		textbuffer.set_text("This is some text inside of a Gtk.TextView. "
-			+ "Select text and click one of the buttons 'bold', 'italic', "
-			+ "or 'underline' to modify the text accordingly.")
+		
 		mailScroll.add(self._mailTextView)
 		self.myGrid.attach(mailScroll,2,1,1,1)
-		
+	
+	def setMailViewText(self,_text):
+		self.mTextViewLock.acquire()
+		mailbuffer = self._mailTextView.get_buffer()
+		mailbuffer.set_text(_text)
+		self.mTextViewLock.release()
 	"""
 	Headerbar
 	"""
