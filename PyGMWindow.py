@@ -18,7 +18,7 @@
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 """
 
-from gi.repository import Gtk
+from gi.repository import Gtk, Gio
 from PyGMConfig import PyGMailConfig
 from PyGMIMAP import PyGMIMAPMgr
 import threading, re
@@ -37,6 +37,14 @@ class MainWindow(Gtk.Window):
 	_maillistListView = None
 	mlTreeViewLock = threading.Lock()
 	
+	# mail view
+	_mailTextView = None
+	mTextViewLock = threading.Lock()
+	
+	# footer
+	_footerBar = None
+	footerLock = threading.Lock()
+	
 	# Status of the GTK window
 	readyLock = threading.Lock()
 	isReady = False
@@ -53,16 +61,14 @@ class MainWindow(Gtk.Window):
 		self.readyLock = threading.Lock()
 		self.mbTreeViewLock = threading.Lock()
 		self.mlTreeViewLock = threading.Lock()
+		self.footerLock = threading.Lock()
 
 		# Window options
 		self.set_border_width(10)
 		self.set_default_size(800, 400)
 
 		# First, create the header bar
-		self._headerBar = Gtk.HeaderBar()
-		self._headerBar.props.show_close_button = True
-		self._headerBar.props.title = PyGMailConfig.getAppNameAndVersion()
-		self.set_titlebar(self._headerBar)
+		self.createHeaderBar()
 
 		# Create the main wrapper
 		self.mainWrapper = Gtk.Grid()
@@ -71,21 +77,23 @@ class MainWindow(Gtk.Window):
 		# Now the component grid
 		self.myGrid = Gtk.Grid()
 		self.myGrid.set_border_width(10)
-		self.footerBar = Gtk.Statusbar()
-		self.footerBar.set_border_width(0);
+		self._footerBar = Gtk.Statusbar()
+		self._footerBar.set_border_width(0);
 
 		# Attach the components to the main Grid
 		self.mainWrapper.attach(self.myGrid,0,1,1,1)
-		self.mainWrapper.attach(self.footerBar,0,2,1,1)
+		self.mainWrapper.attach(self._footerBar,0,2,1,1)
 		self.setFooterText("Initialization in progress...")
 
 		self.createMailboxTreeView()
 		self.createMaillistTreeView()
+		self.createMailView()
 
 		# Events
 		self.connect("delete-event", self.closeWindow)
 
 		# Complete
+		self._footerBar.show()
 		self.setFooterText("Initialization complete")
 		
 		self.readyLock.acquire()
@@ -93,9 +101,11 @@ class MainWindow(Gtk.Window):
 		self.readyLock.release()
 
 	def setFooterText(self,_text):
-		context = self.footerBar.get_context_id("PyGMail")
-		self.footerBar.pop(context)
-		self.footerBar.push(context, "%s" % _text)
+		self.footerLock.acquire()
+		context = self._footerBar.get_context_id("PyGMail")
+		self._footerBar.pop(context)
+		self._footerBar.push(context, "%s" % _text)
+		self.footerLock.release()
 		
 	def closeWindow(self,_window,_event):
 		self.killAllRunningThreads()
@@ -222,6 +232,42 @@ class MainWindow(Gtk.Window):
 		treeIter = self._maillistListView.get_model().append(parent,el)
 		self.mbTreeViewLock.release()
 		return treeIter
+		
+	def createMailView(self):
+		mailScroll = Gtk.ScrolledWindow()
+		mailScroll.set_hexpand(True)
+		mailScroll.set_vexpand(True)
+	
+		self._mailTextView = Gtk.TextView()
+		textbuffer = self._mailTextView.get_buffer()
+		textbuffer.set_text("This is some text inside of a Gtk.TextView. "
+			+ "Select text and click one of the buttons 'bold', 'italic', "
+			+ "or 'underline' to modify the text accordingly.")
+		mailScroll.add(self._mailTextView)
+		self.myGrid.attach(mailScroll,2,1,1,1)
+		
+	"""
+	Headerbar
+	"""
+	
+	def createHeaderBar(self):
+		self._headerBar = Gtk.HeaderBar()
+		self._headerBar.props.show_close_button = True
+		self._headerBar.props.title = PyGMailConfig.getAppNameAndVersion()
+		self.set_titlebar(self._headerBar)
+		
+		# Send/Receive button
+		srButton = Gtk.Button()
+		srButton.connect("clicked", self.onSendReceiveButtonClicked)
+		icon = Gio.ThemedIcon(name="mail-send-receive-symbolic")
+		image = Gtk.Image.new_from_gicon(icon, Gtk.IconSize.BUTTON)
+		srButton.add(image)
+		self._headerBar.pack_end(srButton)
+		
+	def onSendReceiveButtonClicked(self,button):
+		imapThread = PyGMIMAPMgr()
+		imapThread.setMainWindow(self)
+		imapThread.start()
 		
 	# Window loading state
 	def isWindowReady(self):

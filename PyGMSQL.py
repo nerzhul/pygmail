@@ -98,4 +98,8 @@ class PyGMSQLiteMgr:
 
 	def Commit(self):
 		self._conn.commit()
+		
+	def close(self):
+		if self._conn:
+			self._conn.close()
 
