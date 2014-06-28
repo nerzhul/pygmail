@@ -27,6 +27,8 @@ import threading, re
 class MainWindow(Gtk.Window):
 	# Interface stores
 	myGrid = None
+	leftGrid = None
+	rightGrid = None
 	mainWrapper = None
 	_headerBar = None
 	
@@ -78,13 +80,20 @@ class MainWindow(Gtk.Window):
 
 		# Now the component grid
 		self.myGrid = Gtk.Grid()
-		self.myGrid.set_border_width(10)
+		self.myGrid.set_border_width(5)
+		self.leftGrid = Gtk.Grid()
+		self.leftGrid.set_border_width(5)
+		self.rightGrid = Gtk.Grid()
+		self.rightGrid.set_border_width(5)
 		self._footerBar = Gtk.Statusbar()
 		self._footerBar.set_border_width(0);
 
 		# Attach the components to the main Grid
 		self.mainWrapper.attach(self.myGrid,0,1,1,1)
 		self.mainWrapper.attach(self._footerBar,0,2,1,1)
+		
+		self.myGrid.attach(self.leftGrid,0,1,1,1)
+		self.myGrid.attach(self.rightGrid,2,1,1,1)
 		self.setFooterText("Initialization in progress...")
 
 		self.createMailboxTreeView()
@@ -167,7 +176,7 @@ class MainWindow(Gtk.Window):
 		mbtvScroll.set_hexpand(True)
 		mbtvScroll.set_vexpand(True)
 		
-		self.myGrid.attach(mbtvScroll,1,0,1,1)
+		self.leftGrid.attach(mbtvScroll,1,0,1,1)
 
 	def onMailboxSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
@@ -233,7 +242,9 @@ class MainWindow(Gtk.Window):
 		mltvScroll.set_hexpand(True)
 		mltvScroll.set_vexpand(True)
 		
-		self.myGrid.attach(mltvScroll,2,0,1,1)
+		mltvScroll.set_border_width(5)
+		
+		self.rightGrid.attach(mltvScroll,1,0,1,1)
 	
 	def onMaillistSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
@@ -253,6 +264,11 @@ class MainWindow(Gtk.Window):
 		treeIter = self._maillistListView.get_model().append(parent,el)
 		self.mbTreeViewLock.release()
 		return treeIter
+	
+	def clearMLTreeView(self):
+		self.mbTreeViewLock.acquire()
+		self._maillistListView.get_model().clear()
+		self.mbTreeViewLock.release()
 		
 	def createMailView(self):
 		mailScroll = Gtk.ScrolledWindow()
@@ -262,7 +278,9 @@ class MainWindow(Gtk.Window):
 		self._mailTextView = Gtk.TextView()
 		
 		mailScroll.add(self._mailTextView)
-		self.myGrid.attach(mailScroll,2,1,1,1)
+		self.rightGrid.attach(mailScroll,1,1,1,1)
+		
+		mailScroll.set_border_width(5)
 	
 	def setMailViewText(self,_text):
 		self.mTextViewLock.acquire()

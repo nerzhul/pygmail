@@ -88,8 +88,13 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		imapServer = self._imapServers[serverId]
 		if imapServer.Load(serverId) == 0 and imapServer.Connect() == 0 and imapServer.Login() == 0:
 			mailList = imapServer.getMailsFromMailbox(mbName,True)
+			
+			# we clear the treeview only if connection to server succeed
+			self._mainWin.clearMLTreeView()
+			
+			# Now we get the mails and store it into our mailList
 			for mailId in mailList:
-				# Load mail and save it to local database
+				# Load mail 
 				emailMsg = PyGMMail.PyGMEmail(mailList[mailId],self._sqlMgr)
 				emailMsg._mailId = mailId
 				emailMsg._mailbox = mbName
@@ -325,6 +330,10 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 		except imaplib.IMAP4.error, e:
 			self.logCritical(e)
 			return None
+		
+		# If not all mails are asked, we precise a mail list
+		if uidList != "ALL":
+			uidList = "(UID %s)" % uidList
 			
 		result, data = self._imapConn.uid('search', None, uidList)
 		if result != "OK":

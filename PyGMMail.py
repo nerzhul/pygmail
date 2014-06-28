@@ -144,20 +144,24 @@ class PyGMEmail(PyGMSQL.PyGMDBObj):
 			if self._mail.is_multipart():
 				for part in self._mail.get_payload():
 					charset = part.get_content_charset()
-					if charset is None:
-						self._decodedBody += part.get_payload(decode=True)
+					payload = part.get_payload(decode=True)
+					
+					if charset is None and payload != None:
+						self._decodedBody += payload
 					elif part.get_content_type() == 'text/plain':
-						 self._decodedBody += self.reencodeStringToUTF8(part.get_payload(decode=True), charset or 'utf-8')
+						 self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 					elif part.get_content_type() == 'text/html':
-						self._decodedBody += self.reencodeStringToUTF8(part.get_payload(decode=True), charset or 'utf-8')
+						self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 			else:
 				charset = self._mail.get_content_charset()
-				if charset is None:
-					self._decodedBody += self._mail.get_payload(decode=True)
+				payload = self._mail.get_payload(decode=True)
+				
+				if charset is None and self._mail.get_payload(decode=True) != None:
+					self._decodedBody += payload
 				elif self._mail.get_content_type() == 'text/plain':
-					 self._decodedBody += self.reencodeStringToUTF8(self._mail.get_payload(decode=True), charset or 'utf-8')
+					 self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 				elif self._mail.get_content_type() == 'text/html':
-					self._decodedBody += self.reencodeStringToUTF8(self._mail.get_payload(decode=True), charset or 'utf-8')
+					self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 		
 		return self._decodedBody
 		
