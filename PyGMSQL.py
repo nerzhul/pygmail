@@ -1,6 +1,6 @@
 #! /usr/bin/python2.7
 
-import sqlite3
+import sqlite3, logging
 
 from PyGMConfig import PyGMailConfig
 
@@ -8,11 +8,13 @@ class PyGMDBObj:
 	_sqlMgr = None
 	_sqlTable = ""
 	_idName = ""
+	myName = "UNK-DBOBj-NAME"
 	
 	def __init__(self,sqlMgr):
 		self._sqlMgr = sqlMgr
 		self._sqlTable = ""
 		self._idName = ""
+		self.logger = logging.getLogger("PyGMail")
 		
 	def CreateTable(self):
 		print "Method not implemented"
@@ -30,6 +32,22 @@ class PyGMDBObj:
 				return 3
 				
 			return 2
+	
+	def logDebug(self, msg):
+		self.logger.debug("%s: %s" % (self.myName,msg))
+	
+	def logInfo(self, msg):
+		self.logger.info("%s: %s" % (self.myName,msg))
+
+	def logWarn(self, msg):
+		self.logger.warn("%s: %s" % (self.myName,msg))
+		
+	def logError(self, msg):
+		self.logger.error("%s: %s" % (self.myName,msg))
+
+	def logCritical(self, msg):
+		self.logger.critical("%s: %s" % (self.myName,msg))
+
 
 class PyGMSQLiteMgr:
 	_conn = None

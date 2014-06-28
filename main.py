@@ -30,8 +30,11 @@ if __name__ == '__main__':
 	sqlMgr.Connect()
 	
 	imapThread = PyGMIMAPMgr()
-	imapThread.start()
 	win = MainWindow(sqlMgr)
+	
+	imapThread.setMainWindow(win)
+	imapThread.start()
+	
 	win.show_all()
 	win.addThreadToKill(imapThread)
 	Gtk.main()

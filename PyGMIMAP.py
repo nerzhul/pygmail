@@ -1,11 +1,16 @@
 #! /usr/bin/python2.7
 
-import imaplib
+import imaplib, re, time
 import PyGMSQL, PyGMThread
+
+class IMAPTreeViewType():
+	account = 1
+	mailBox = 2
 
 class PyGMIMAPMgr(PyGMThread.Thread):
 	_imapServers = {}
 	_sqlMgr = None
+	_mainWin = None
 	
 	_IMAPAccountsTable = "imapaccounts"
 	
@@ -16,6 +21,9 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		
 		self._sqlMgr = None
 		self._imapServers = {}
+		
+	def setMainWindow(self,win):
+		self._mainWin = win
 	
 	def run(self):
 		self.launchMsg()
@@ -24,6 +32,10 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		self._sqlMgr = PyGMSQL.PyGMSQLiteMgr()
 		self._sqlMgr.Connect()
 		
+		# We need to wait the mainWindow to be ready
+		while self._mainWin.isWindowReady() == False:
+			time.sleep(1)
+			
 		while True:
 			self.setRunning(True)
 			self.loadIMAPServers()
@@ -31,14 +43,99 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		
 	def loadIMAPServers(self):
 		for row in self._sqlMgr.Fetch("SELECT acctid FROM %s" % self._IMAPAccountsTable):
-			if row[0] not in self._imapServers:
-				self._imapServers[row[0]] = IMAPServer(self._sqlMgr)
+			serverId = row[0]
+			imapServer = None
+			if serverId not in self._imapServers:
+				self._imapServers[serverId] = IMAPServer(self._sqlMgr)
 				
-			self._imapServers[row[0]].Load(row[0])
-			self._imapServers[row[0]].Connect()
-			self._imapServers[row[0]].Login()
-
-
+			imapServer = self._imapServers[serverId]
+				
+			imapServer.Load(serverId)
+			if imapServer.Connect() == 0:
+				if imapServer.Login() == 0:
+					if self.findAccountInTreeView(serverId) == None:
+						serverIter = self._mainWin.addElemToMBTreeView(None,[imapServer._serverAddr,IMAPTreeViewType.account,"%s" % serverId])
+						self.renderMailboxes(imapServer,serverIter)
+						
+	def findAccountInTreeView(self,acctid):
+		store = self._mainWin.getMailboxGTKStore()
+		
+		mbtsIter = store.get_iter_first()
+		while mbtsIter != None:
+			if store[mbtsIter][1] == IMAPTreeViewType.account and store[mbtsIter][2] == acctid:
+				return store[mbtsIter]
+			
+			mbtsIter = store.iter_next(mbtsIter)
+		
+		return None
+		
+	def findMailBoxInTreeView(self,mbPath):
+		store = self._mainWin.getMailboxGTKStore()
+		mbIter = store.get_iter_first()
+		return self.findMailBoxTreeIter(store,mbIter,mbPath)
+		
+	def findMailBoxTreeIter(self,store,mbIter,mbPath):
+		while mbIter != None:
+			iterFound = None
+			
+			iterChild = store.iter_children(mbIter)
+			if iterChild != None:
+				iterFound = self.findMailBoxTreeIter(store,iterChild,mbPath)
+				
+			if iterFound == None:
+				iterFound = mbIter
+			
+			if store[iterFound][1] == IMAPTreeViewType.mailBox and store[iterFound][2] == mbPath:
+				return iterFound
+			
+			mbIter = store.iter_next(mbIter)
+		
+		return None
+			
+	def renderMailboxes(self,imapServer,serverIter):
+		mbList = imapServer.collectMailboxes()
+		
+		# buffer which say the already rendered mailboxes, for perf improvements
+		renderedMailboxes = ()
+		for mb in mbList:
+			mb = re.split(" \".\" ",mb)
+			mbPath = re.sub("\"","",mb[1])
+			mbSpl = re.split("\.",mbPath)
+			mbSplLen = len(mbSpl)
+			
+			# render mailbox and its parents (if not already rendered)
+			for mbNameIdx in range(0,mbSplLen):
+				mbName = mbSpl[mbNameIdx]
+				
+				# generate MbPath
+				mbPathTmp = ""
+				for idx2 in range(0,mbNameIdx+1):
+					mbPathTmp += mbSpl[idx2]
+					if idx2 != mbNameIdx:
+						mbPathTmp += "."
+				
+				# generate parent MbPath
+				mbPathParentTmp = ""
+				for idx2 in range(0,mbNameIdx):
+					mbPathParentTmp += mbSpl[idx2]
+					if idx2 != mbNameIdx-1:
+						mbPathParentTmp += "."
+				
+				uniqPath = "%s-%s" % (imapServer._serverAddr, mbPathTmp)
+				uniqParentPath = "%s-%s" % (imapServer._serverAddr, mbPathParentTmp)
+				if uniqPath not in renderedMailboxes:
+					mbIter = self.findMailBoxInTreeView(uniqPath)
+					
+					# If there is a parent name, search, else set to serverIter (the account)
+					if mbPathParentTmp != "":
+						mbIterParent = self.findMailBoxInTreeView(uniqParentPath)
+					else:
+						mbIterParent = serverIter
+						
+					if mbIter == None:
+						self._mainWin.addElemToMBTreeView(mbIterParent,[mbName,IMAPTreeViewType.mailBox,uniqPath])
+						renderedMailboxes += (uniqPath,)
+		
 class IMAPServer(PyGMSQL.PyGMDBObj):
 	# DB associated attributes
 	_id = 0
@@ -57,6 +154,7 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 	
 	def __init__(self,sqlMgr):
 		PyGMSQL.PyGMDBObj.__init__(self,sqlMgr)
+		self.myName = "IMAPServer"
 		self._sqlTable = "imapaccounts"
 		self._idName = "acctid"
 		self._imapConn = None
@@ -107,7 +205,7 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 			self._logged = False
 			return 0
 		except imaplib.IMAP4.error, e:
-			print e
+			self.logCritical(e)
 			return 1
 	
 	def Login(self):
@@ -118,6 +216,7 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 		res = self._sqlMgr.FetchOne("SELECT imappwd FROM %s WHERE %s = %s" % (self._sqlCredentialsTable, self._idName, self._id))
 		
 		if res == None:
+			self.logCritical("No password found for server %s (id %s)" % (self._serverAddr,self._id))
 			return 2
 		
 		try:
@@ -125,11 +224,19 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 			self._logged = True
 			return 0
 		except imaplib.IMAP4.error, e:
+			self.logWarn(e)
 			return 3
 		
 	def collectMailboxes(self):
 		if self._imapConn == None and self._logged == False:
-			return 1
+			self.logCritical("Trying to collect mailbox on non connected/logged server %s (id %s)" % (self._serverAddr,self._id))
+			return None
 		
+		mbList = self._imapConn.list()
 		
+		if mbList[0] != "OK":
+			self.logCritical("Server %s (id %s) returned %s when collecting mailboxes" % (self._serverAddr,self._id, mbList[0]))
+			return None
+		
+		return mbList[1]
 		
