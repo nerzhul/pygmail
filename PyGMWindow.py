@@ -34,7 +34,7 @@ class MainWindow(Gtk.Window):
 	mbTreeViewLock = threading.Lock()
 	
 	# mail list
-	_maillistTreeView = None
+	_maillistListView = None
 	mlTreeViewLock = threading.Lock()
 	
 	# Status of the GTK window
@@ -176,30 +176,38 @@ class MainWindow(Gtk.Window):
 		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str)
 
 		self.mlTreeViewLock.acquire()
-		self._maillistTreeView = Gtk.TreeView(maillistTreeStore)
+		self._maillistListView = Gtk.TreeView(maillistTreeStore)
 
 		# Table columns
-		renderer = Gtk.CellRendererText()
-		mlTreeViewCol = Gtk.TreeViewColumn("R", renderer, text=0)
-		self._maillistTreeView.append_column(mlTreeViewCol)
-		mlTreeViewCol = Gtk.TreeViewColumn("U", renderer, text=0)
-		self._maillistTreeView.append_column(mlTreeViewCol)
-		mlTreeViewCol = Gtk.TreeViewColumn("De", renderer, text=0)
-		self._maillistTreeView.append_column(mlTreeViewCol)
-		mlTreeViewCol = Gtk.TreeViewColumn("Objet", renderer, text=0)
-		self._maillistTreeView.append_column(mlTreeViewCol)
-		mlTreeViewCol = Gtk.TreeViewColumn("Date", renderer, text=0)
-		self._maillistTreeView.append_column(mlTreeViewCol)
+		rendererRead = Gtk.CellRendererText()
+		mlListViewColRead = Gtk.TreeViewColumn("R", rendererRead, text=0)
+		self._maillistListView.append_column(mlListViewColRead)
+		
+		rendererUrgent = Gtk.CellRendererText()
+		mlListViewColUrgent = Gtk.TreeViewColumn("U", rendererUrgent, text=1)
+		self._maillistListView.append_column(mlListViewColUrgent)
+		
+		rendererFrom = Gtk.CellRendererText()
+		mlListViewColFrom = Gtk.TreeViewColumn("De", rendererFrom, text=2)
+		self._maillistListView.append_column(mlListViewColFrom)
+		
+		rendererSubject = Gtk.CellRendererText()
+		mlListViewColSubject = Gtk.TreeViewColumn("Objet", rendererSubject, text=3)
+		self._maillistListView.append_column(mlListViewColSubject)
+		
+		renderedDate = Gtk.CellRendererText()
+		mlListViewColDate = Gtk.TreeViewColumn("Date", renderedDate, text=4)
+		self._maillistListView.append_column(mlListViewColDate)
 		
 		# Event handler
-		select = self._maillistTreeView.get_selection()
+		select = self._maillistListView.get_selection()
 		select.connect("changed", self.onMaillistSelectionChanged)
 		
 		self.mlTreeViewLock.release()
 		
 		# Attach elements to grid
 		mltvScroll = Gtk.ScrolledWindow()
-		mltvScroll.add(self._maillistTreeView)
+		mltvScroll.add(self._maillistListView)
 		mltvScroll.set_hexpand(True)
 		mltvScroll.set_vexpand(True)
 		
@@ -211,7 +219,7 @@ class MainWindow(Gtk.Window):
 	
 	def addElemToMLTreeView(self,parent,el):
 		self.mbTreeViewLock.acquire()
-		treeIter = self._maillistTreeView.get_model().append(parent,el)
+		treeIter = self._maillistListView.get_model().append(parent,el)
 		self.mbTreeViewLock.release()
 		return treeIter
 		

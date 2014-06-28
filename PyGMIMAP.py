@@ -19,7 +19,7 @@
 """
 
 import imaplib, re, time, email, email.header
-import PyGMSQL, PyGMThread
+import PyGMSQL, PyGMThread, PyGMMail
 
 class IMAPTreeViewType():
 	account = 1
@@ -85,19 +85,14 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 			self._imapServers[serverId] = IMAPServer(self._sqlMgr)
 		
 		imapServer = self._imapServers[serverId]
-		print serverId
 		if imapServer.Load(serverId) == 0:
-			print mbName
 			if imapServer.Connect() == 0:
-				print mbName
 				if imapServer.Login() == 0:
-					print mbName
 					mailList = imapServer.getAllMailsFromMailbox(mbName)
 					for mailId in mailList:
 						# GTK things
-						emailMsg = email.message_from_string(mailList[mailId])
-						#print email.header.decode_header(emailMsg["Subject"])
-						#serverIter = self._mainWin.addElemToMLTreeView(None,[0,0,emailMsg["From"],emailMsg["Subject"],"%s" % serverId])
+						emailMsg = PyGMMail.PyGMEmail(mailList[mailId])
+						mailIter = self._mainWin.addElemToMLTreeView(None,[1,2,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate()])
 				
 	def findAccountInTreeView(self,acctid):
 		store = self._mainWin.getMailboxGTKStore()
