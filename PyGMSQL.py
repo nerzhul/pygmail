@@ -1,6 +1,6 @@
 #! /usr/bin/python2.7
 
-import sqlite3, logging
+import sqlite3, logging, os.path
 
 from PyGMConfig import PyGMailConfig
 
@@ -58,11 +58,12 @@ class PyGMSQLiteMgr:
 	
 	def Connect(self):
 		try:
-			self._conn = sqlite3.connect(PyGMailConfig.userDBPath)
+			self._conn = sqlite3.connect(os.path.expanduser(PyGMailConfig.userDBPath))
 			self._cursor = self._conn.cursor()
 			ret = self.CheckTables()
 			return ret
 		except Exception, e:
+			print e
 			self._conn = None
 			return 1
 	

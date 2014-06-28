@@ -100,12 +100,7 @@ class MainWindow(Gtk.Window):
 		self.isReady = True
 		self.readyLock.release()
 
-	def setFooterText(self,_text):
-		self.footerLock.acquire()
-		context = self._footerBar.get_context_id("PyGMail")
-		self._footerBar.pop(context)
-		self._footerBar.push(context, "%s" % _text)
-		self.footerLock.release()
+	
 		
 	def closeWindow(self,_window,_event):
 		self.killAllRunningThreads()
@@ -120,6 +115,23 @@ class MainWindow(Gtk.Window):
 	def killAllRunningThreads(self):
 		for thread in self._toKillThreads:
 			thread._Thread__stop()
+	
+	"""
+	Footer bar
+	"""
+	
+	def setFooterText(self,_text):
+		self.footerLock.acquire()
+		context = self._footerBar.get_context_id("PyGMail")
+		self._footerBar.pop(context)
+		self._footerBar.push(context, "%s" % _text)
+		self.footerLock.release()
+	
+	def removeFooterText(self):
+		self.footerLock.acquire()
+		context = self._footerBar.get_context_id("PyGMail")
+		self._footerBar.pop(context)
+		self.footerLock.release()
 		
 	"""
 	Mailbox Treeview

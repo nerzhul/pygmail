@@ -47,12 +47,14 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		while self._mainWin.isWindowReady() == False:
 			time.sleep(1)
 			
-		self.loadIMAPServers()
+		self.loadMailBoxes()
 		
-	def loadIMAPServers(self):
+	def loadMailBoxes(self):
 		# Connect to SQLite DB
 		self._sqlMgr = PyGMSQL.PyGMSQLiteMgr()
 		self._sqlMgr.Connect()
+		
+		self._mainWin.setFooterText("Loading mailboxes")
 		
 		for row in self._sqlMgr.Fetch("SELECT acctid FROM %s" % self._IMAPAccountsTable):
 			serverId = row[0]
@@ -69,12 +71,15 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 						serverIter = self._mainWin.addElemToMBTreeView(None,[imapServer._serverAddr,IMAPTreeViewType.account,"%s" % serverId])
 						self.renderMailboxes(imapServer,serverIter)
 		
+		self._mainWin.removeFooterText()
 		self._sqlMgr.close()
 	
 	def loadMailboxMails(self,serverId,mbName):
 		# Connect to SQLite DB
 		self._sqlMgr = PyGMSQL.PyGMSQLiteMgr()
 		self._sqlMgr.Connect()
+		
+		self._mainWin.setFooterText("Loading mails from mailbox %s" % mbName)
 		
 		imapServer = None
 		if serverId not in self._imapServers:
@@ -90,6 +95,7 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 						emailMsg = PyGMMail.PyGMEmail(mailList[mailId])
 						mailIter = self._mainWin.addElemToMLTreeView(None,[1,2,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate()])
 		
+		self._mainWin.removeFooterText()
 		self._sqlMgr.close()
 				
 	def findAccountInTreeView(self,acctid):
