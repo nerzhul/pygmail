@@ -23,6 +23,7 @@ from PyGMConfig import PyGMailConfig
 from PyGMIMAP import PyGMIMAPMgr
 import PyGMMail
 import threading, re
+import GnomeHTMLTextView
 
 class MainWindow(Gtk.Window):
 	# Interface stores
@@ -86,7 +87,7 @@ class MainWindow(Gtk.Window):
 		self.rightGrid = Gtk.Grid()
 		self.rightGrid.set_border_width(5)
 		self._footerBar = Gtk.Statusbar()
-		self._footerBar.set_border_width(0);
+		self._footerBar.set_border_width(0)
 
 		# Attach the components to the main Grid
 		self.mainWrapper.attach(self.myGrid,0,1,1,1)
@@ -175,6 +176,7 @@ class MainWindow(Gtk.Window):
 		mbtvScroll.add(self._mailboxTreeView)
 		mbtvScroll.set_hexpand(True)
 		mbtvScroll.set_vexpand(True)
+		mbtvScroll.set_property("hscrollbar-policy", Gtk.PolicyType.AUTOMATIC)
 		
 		self.leftGrid.attach(mbtvScroll,1,0,1,1)
 
@@ -260,7 +262,7 @@ class MainWindow(Gtk.Window):
 		imapMgr.setMainWindow(self)
 		
 		mailObj = imapMgr.loadMail(serverId,mboxName,mailId)
-		self.setMailViewText(mailObj.getBody())
+		self.setMailViewText(mailObj.getBody(),mailObj.isHTML)
 	
 	def addElemToMLTreeView(self,parent,el):
 		self.mbTreeViewLock.acquire()
@@ -273,22 +275,30 @@ class MainWindow(Gtk.Window):
 		self._maillistListView.get_model().clear()
 		self.mbTreeViewLock.release()
 		
+	"""
+	Mail view
+	"""
+		
 	def createMailView(self):
 		mailScroll = Gtk.ScrolledWindow()
 		mailScroll.set_hexpand(True)
 		mailScroll.set_vexpand(True)
 	
-		self._mailTextView = Gtk.TextView()
+		#self._mailTextView = Gtk.TextView()
+		self._mailTextView = GnomeHTMLTextView.HtmlTextView()
 		
 		mailScroll.add(self._mailTextView)
 		self.rightGrid.attach(mailScroll,1,1,1,1)
 		
 		mailScroll.set_border_width(5)
 	
-	def setMailViewText(self,_text):
+	def setMailViewText(self,_text,_html = False):
 		self.mTextViewLock.acquire()
-		mailbuffer = self._mailTextView.get_buffer()
-		mailbuffer.set_text(_text)
+		if _html == False:
+			mailbuffer = self._mailTextView.get_buffer()
+			mailbuffer.set_text(_text)
+		else:
+			self._mailTextView.display_html(_text)
 		self.mTextViewLock.release()
 	"""
 	Headerbar

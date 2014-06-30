@@ -38,11 +38,14 @@ class PyGMEmail(PyGMSQL.PyGMDBObj):
 	_decodedDate = None
 	_decodedBody = None
 	
+	isHTML = False
+	
 	def __init__(self,rawMail,sqlMgr):
 		PyGMSQL.PyGMDBObj.__init__(self,sqlMgr)
 		self.myName = "PyGMEmail"
 		self._sqlTable = "email"
 		self._idName = "mailid"
+		self.isHTML = False
 		
 		self._mail = email.message_from_string(rawMail)
 		
@@ -151,6 +154,7 @@ class PyGMEmail(PyGMSQL.PyGMDBObj):
 					elif part.get_content_type() == 'text/plain':
 						 self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 					elif part.get_content_type() == 'text/html':
+						self.isHTML = True
 						self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 			else:
 				charset = self._mail.get_content_charset()
@@ -161,6 +165,7 @@ class PyGMEmail(PyGMSQL.PyGMDBObj):
 				elif self._mail.get_content_type() == 'text/plain':
 					 self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 				elif self._mail.get_content_type() == 'text/html':
+					self.isHTML = True
 					self._decodedBody += self.reencodeStringToUTF8(payload, charset or 'utf-8')
 		
 		return self._decodedBody
