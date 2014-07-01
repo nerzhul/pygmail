@@ -353,11 +353,9 @@ class HtmlTextView(Gtk.TextView):
 		buffer = self.get_buffer()
 		buffer.set_text("")
 		eob = buffer.get_start_iter()
-		parser = xml.sax.make_parser()
-		parser.setContentHandler(HtmlHandler(self, eob))
 		html = HTMLParser.HTMLParser().unescape(html)
-		html = MyHTMLParser(self,eob).feed(html)
 		print html
+		MyHTMLParser(self,eob).feed(html)
 		#parser.parse(StringIO("<body>%s</body>" % html))
 
 		if not eob.starts_line():
@@ -466,7 +464,8 @@ class MyHTMLParser(HTMLParser.HTMLParser):
 			if not self._iter.starts_line():
 				self._insert_text("\n")
 		elif tag == 'br':
-			pass # handled in handle_endtag
+			if not self._iter.starts_line():
+				self._insert_text("\n")
 		elif tag == 'ul':
 			if not self._iter.starts_line():
 				self._insert_text("\n")
@@ -493,8 +492,7 @@ class MyHTMLParser(HTMLParser.HTMLParser):
 			if not self._iter.starts_line():
 				self._insert_text("\n")
 		elif tag == 'br':
-			if not self._iter.starts_line():
-				self._insert_text("\n")
+			pass
 		elif tag == 'ul':
 			self.list_counters.pop()
 		elif tag == 'ol':
