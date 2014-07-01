@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
+
 ### Copyright (C) 2005-2007 Gustavo J. A. M. Carneiro
+### Copyright (C) 2014 Loic Blot
 ###
 ### This library is free software; you can redistribute it and/or
 ### modify it under the terms of the GNU Lesser General Public
@@ -25,6 +28,7 @@ import pango
 from gi.repository import Gdk
 from gi.repository import Gtk
 import xml.sax, xml.sax.handler
+from xml.sax.handler import ErrorHandler
 import HTMLParser
 import re
 import warnings
@@ -231,97 +235,6 @@ class HtmlHandler(xml.sax.handler.ContentHandler):
             warnings.warn("unknown font-style %s" % value)
         else:
             tag.set_property("weight", weight)
-
-    def _parse_style_font_family(self, tag, value):
-        tag.set_property("family", value)
-
-    def _parse_style_text_align(self, tag, value):
-        try:
-            align = {
-                'left': Gtk.Justification.LEFT,
-                'right': Gtk.Justification.RIGHT,
-                'center': Gtk.Justification.CENTER,
-                'justify': Gtk.Justification.FILL,
-                } [value]
-        except KeyError:
-            warnings.warn("Invalid text-align:%s requested" % value)
-        else:
-            tag.set_property("justification", align)
-    
-    def _parse_style_text_decoration(self, tag, value):
-        if value == "none":
-            tag.set_property("underline", pango.UNDERLINE_NONE)
-            tag.set_property("strikethrough", False)
-        elif value == "underline":
-            tag.set_property("underline", pango.UNDERLINE_SINGLE)
-            tag.set_property("strikethrough", False)
-        elif value == "overline":
-            warnings.warn("text-decoration:overline not implemented")
-            tag.set_property("underline", pango.UNDERLINE_NONE)
-            tag.set_property("strikethrough", False)
-        elif value == "line-through":
-            tag.set_property("underline", pango.UNDERLINE_NONE)
-            tag.set_property("strikethrough", True)
-        elif value == "blink":
-            warnings.warn("text-decoration:blink not implemented")
-        else:
-            warnings.warn("text-decoration:%s not implemented" % value)
-        
-
-    ## build a dictionary mapping styles to methods, for greater speed
-    __style_methods = dict()
-    for style in ["background-color", "color", "font-family", "font-size",
-                  "font-style", "font-weight", "margin-left", "margin-right",
-                  "text-align", "text-decoration"]:
-        try:
-            method = locals()["_parse_style_%s" % style.replace('-', '_')]
-        except KeyError:
-            warnings.warn("Style attribute '%s' not yet implemented" % style)
-        else:
-            __style_methods[style] = method
-
-    def _get_style_tags(self):
-        return [tag for tag in self.styles if tag is not None]
-
-    def _begin_span(self, style, tag=None):
-        if style is None:
-            self.styles.append(tag)
-            return None
-        if tag is None:
-            tag = self.textbuf.create_tag()
-        for attr, val in [item.split(':', 1) for item in style.split(';')]:
-            attr = attr.strip().lower()
-            val = val.strip()
-            try:
-                method = self.__style_methods[attr]
-            except KeyError:
-                warnings.warn("Style attribute '%s' requested "
-                              "but not yet implemented" % attr)
-            else:
-                method(self, tag, val)
-        self.styles.append(tag)
-
-    def _end_span(self):
-        self.styles.pop(-1)
-
-    def _insert_text(self, text):
-        tags = self._get_style_tags()
-        if tags:
-            self.textbuf.insert_with_tags(self.iter, text, *tags)
-        else:
-            self.textbuf.insert(self.iter, text)
-    
-    def _flush_text(self):
-        if not self.text:
-            return
-        self._insert_text(self.text.replace('\n', ''))
-        self.text = ''
-
-    def _anchor_event(self, tag, textview, event, iter, href, type_):
-        if event.type == Gdk.Button.PRESS and event.button == 1:
-            self.textview.emit("url-clicked", href, type_)
-            return True
-        return False
         
     def characters(self, content):
         if allwhitespace_rx.match(content) is not None:
@@ -331,51 +244,12 @@ class HtmlHandler(xml.sax.handler.ContentHandler):
         self.text += whitespace_rx.sub(' ', content)
 
     def startElement(self, name, attrs):
-        self._flush_text()
-        try:
-            style = attrs['style']
-        except KeyError:
-            style = None
 
-        tag = None
-        if name == 'a':
-            tag = self.textbuf.create_tag()
-            tag.set_property('foreground', '#0000ff')
-            tag.set_property('underline', pango.UNDERLINE_SINGLE)
-            try:
-                type_ = attrs['type']
-            except KeyError:
-                type_ = None
-            tag.connect('event', self._anchor_event, attrs['href'], type_)
-            tag.is_anchor = True
-        
-        self._begin_span(style, tag)
-
-        if name == 'br':
-            pass # handled in endElement
-        elif name == 'p':
-            if not self.iter.starts_line():
-                self._insert_text("\n")
-        elif name == 'div':
+        if name == 'div':
             if not self.iter.starts_line():
                 self._insert_text("\n")
         elif name == 'span':
             pass
-        elif name == 'ul':
-            if not self.iter.starts_line():
-                self._insert_text("\n")
-            self.list_counters.insert(0, None)
-        elif name == 'ol':
-            if not self.iter.starts_line():
-                self._insert_text("\n")
-            self.list_counters.insert(0, 0)
-        elif name == 'li':
-            if self.list_counters[0] is None:
-                li_head = unichr(0x2022)
-            else:
-                self.list_counters[0] += 1
-                li_head = "%i." % self.list_counters[0]
-            self.text = ' '*len(self.list_counters)*4 + li_head + ' '
         elif name == 'img':
             try:
                 ## Max image size = 10 MB (to try to prevent DoS)
@@ -415,27 +289,14 @@ class HtmlHandler(xml.sax.handler.ContentHandler):
 
     def endElement(self, name):
         self._flush_text()
-        if name == 'p':
-            if not self.iter.starts_line():
-                self._insert_text("\n")
-        elif name == 'div':
+        if name == 'div':
             if not self.iter.starts_line():
                 self._insert_text("\n")
         elif name == 'span':
             pass
-        elif name == 'br':
-            self._insert_text("\n")
-        elif name == 'ul':
-            self.list_counters.pop()
-        elif name == 'ol':
-            self.list_counters.pop()
-        elif name == 'li':
-            self._insert_text("\n")
         elif name == 'img':
             pass
         elif name == 'body':
-            pass
-        elif name == 'a':
             pass
         else:
             warnings.warn("Unhandled element '%s'" % name)
@@ -491,17 +352,221 @@ class HtmlTextView(Gtk.TextView):
     def display_html(self, html):
 		buffer = self.get_buffer()
 		buffer.set_text("")
-		print html
 		eob = buffer.get_start_iter()
-		## this works too if libxml2 is not available
-		#parser = xml.sax.make_parser(['drv_libxml2'])
 		parser = xml.sax.make_parser()
 		parser.setContentHandler(HtmlHandler(self, eob))
 		html = HTMLParser.HTMLParser().unescape(html)
-		try:
-			parser.parse(StringIO(html))
-		except xml.sax._exceptions.SAXParseException:
-			parser.parse(StringIO("<body>%s</body>" % html))
+		html = MyHTMLParser(self,eob).feed(html)
+		print html
+		#parser.parse(StringIO("<body>%s</body>" % html))
 
 		if not eob.starts_line():
 			buffer.insert(eob, "\n")
+
+class MyHTMLParser(HTMLParser.HTMLParser):
+	_textView = None
+	_textBuffer = None
+	_iter = None
+	_styles = []
+	_text = ""
+	_prevTag = ""
+	
+	def __init__(self,tv,startiter):
+		HTMLParser.HTMLParser.__init__(self)
+		self._textView = tv
+		self._textBuffer = tv.get_buffer()
+		self._iter = startiter
+		self._styles = []
+		self.list_counters = [] # stack (top at head) of list
+								# counters, or None for unordered list
+	
+	## build a dictionary mapping styles to methods, for greater speed
+	__style_methods = dict()
+	for style in ["background-color", "color", "font-family", "font-size",
+			"font-style", "font-weight", "margin-left", "margin-right",
+			"text-align", "text-decoration"]:
+		try:
+			method = locals()["_parse_style_%s" % style.replace('-', '_')]
+		except KeyError:
+			warnings.warn("Style attribute '%s' not yet implemented" % style)
+		else:
+			__style_methods[style] = method
+	
+	def _parse_style_font_family(self, tag, value):
+		tag.set_property("family", value)
+
+	def _parse_style_text_align(self, tag, value):
+		try:
+			align = {
+				'left': Gtk.Justification.LEFT,
+				'right': Gtk.Justification.RIGHT,
+				'center': Gtk.Justification.CENTER,
+				'justify': Gtk.Justification.FILL,
+			} [value]
+		except KeyError:
+			warnings.warn("Invalid text-align:%s requested" % value)
+		else:
+			tag.set_property("justification", align)
+    
+	def _parse_style_text_decoration(self, tag, value):
+		if value == "none":
+			tag.set_property("underline", pango.UNDERLINE_NONE)
+			tag.set_property("strikethrough", False)
+		elif value == "underline":
+			tag.set_property("underline", pango.UNDERLINE_SINGLE)
+			tag.set_property("strikethrough", False)
+		elif value == "overline":
+			warnings.warn("text-decoration:overline not implemented")
+			tag.set_property("underline", pango.UNDERLINE_NONE)
+			tag.set_property("strikethrough", False)
+		elif value == "line-through":
+			tag.set_property("underline", pango.UNDERLINE_NONE)
+			tag.set_property("strikethrough", True)
+		elif value == "blink":
+			warnings.warn("text-decoration:blink not implemented")
+		else:
+			warnings.warn("text-decoration:%s not implemented" % value)
+
+	def _get_style_tags(self):
+		return [tag for tag in self._styles if tag is not None]
+		
+	def _insert_text(self, text):
+		tags = self._get_style_tags()
+		if tags:
+			self._textBuffer.insert_with_tags(self._iter, text, *tags)
+		else:
+			self._textBuffer.insert(self._iter, text)
+	
+	def _flush_text(self):
+		if not self._text:
+			return
+		self._insert_text(self._text.replace('\n', ''))
+		self._text = ''
+		
+	def handle_starttag(self, tag, attrs):
+		self._flush_text()
+
+		style = self._find_attr_val(attrs,"style")
+		for attr in attrs:
+			print "     attr:", attr
+
+		tbtag = None
+		if tag == 'a':
+			tbtag = self._textBuffer.create_tag()
+			tbtag.set_property('foreground', '#0000ff')
+			tbtag.set_property('underline', pango.UNDERLINE_SINGLE)
+			
+			type_ = self._find_attr_val(attrs,"type")
+			tbtag.connect('event', self._anchor_event, self._find_attr_val(attrs,"href"), type_)
+			tbtag.is_anchor = True
+			
+		self._begin_span(style, tbtag)
+		
+		if tag == 'p':
+			if not self._iter.starts_line():
+				self._insert_text("\n")
+		elif tag == 'br':
+			pass # handled in handle_endtag
+		elif tag == 'ul':
+			if not self._iter.starts_line():
+				self._insert_text("\n")
+			self.list_counters.insert(0, None)
+		elif tag == 'ol':
+			if not self._iter.starts_line():
+				self._insert_text("\n")
+			self.list_counters.insert(0, 0)
+		elif tag == 'li':
+			if self.list_counters[0] is None:
+				li_head = unichr(0x2022)
+			else:
+				self.list_counters[0] += 1
+				li_head = "%i." % self.list_counters[0]
+			self._text = ' '*len(self.list_counters)*4 + li_head + ' '
+		elif tag == 'a':
+			pass
+		else:
+			print "Start tag:", tag
+	
+	def handle_endtag(self, tag):
+		self._flush_text()
+		if tag == 'p':
+			if not self._iter.starts_line():
+				self._insert_text("\n")
+		elif tag == 'br':
+			if not self._iter.starts_line():
+				self._insert_text("\n")
+		elif tag == 'ul':
+			self.list_counters.pop()
+		elif tag == 'ol':
+			self.list_counters.pop()
+		elif tag == 'li':
+			self._insert_text("\n")
+		elif tag == 'a':
+			pass
+		else:
+			print "End tag  :", tag
+		
+		self._end_span()
+		
+	def handle_data(self, data):
+		self._insert_text(data)
+		
+	def handle_comment(self, data):
+		print "Comment  :", data
+		
+	def handle_entityref(self, name):
+		c = unichr(name2codepoint[name])
+		print "Named ent:", c
+		
+	def handle_charref(self, name):
+		if name.startswith('x'):
+			c = unichr(int(name[1:], 16))
+		else:
+			c = unichr(int(name))
+		print "Num ent  :", c
+		
+	def handle_decl(self, data):
+		print "Decl     :", data
+	
+	def _anchor_event(self, tag, textview, event, iter, href, type_):
+		if event.type == Gdk.EventType.BUTTON_PRESS and event.button == 1:
+			self._textView.emit("url-clicked", href, type_)
+			return True
+		return False
+	
+	def _begin_span(self, style, tag=None):
+		if style is None:
+			self._styles.append(tag)
+			return None
+		if tag is None:
+			tag = self._textBuffer.create_tag()
+		for attr, val in [item.split(':', 1) for item in style.split(';')]:
+			attr = attr.strip().lower()
+			val = val.strip()
+			try:
+				method = self.__style_methods[attr]
+			except KeyError:
+				warnings.warn("Style attribute '%s' requested "
+							"but not yet implemented" % attr)
+			else:
+				method(self, tag, val)
+		self._styles.append(tag)
+
+	def _end_span(self):
+		if len(self._styles) > 0:
+			self._styles.pop(-1)
+
+	def _find_attr_id(self,attrs,name):
+		attrsLen = len(attrs)
+		for i in range(0,attrsLen):
+			if attrs[i] == name:
+				return i
+		
+		return -1
+
+	def _find_attr_val(self,attrs,name):
+		typeId = self._find_attr_id(attrs,"type")
+		if typeId != -1 and typeId+1 < len(attrs):
+			return attrs[typeId+1]
+		else:
+			return None
