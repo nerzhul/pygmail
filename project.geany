@@ -22,13 +22,14 @@ long_line_behaviour=1
 long_line_column=72
 
 [files]
-current_page=1
+current_page=6
 FILE_NAME_0=754;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2Fmain.py;0;4
-FILE_NAME_1=8425;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMWindow.py;0;4
-FILE_NAME_2=10336;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMIMAP.py;0;4
-FILE_NAME_3=5430;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMMail.py;0;4
+FILE_NAME_1=8318;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMWindow.py;0;4
+FILE_NAME_2=10201;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMIMAP.py;0;4
+FILE_NAME_3=0;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMMail.py;0;4
 FILE_NAME_4=755;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMSQL.py;0;4
 FILE_NAME_5=111;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FPyGMConfig.py;0;4
+FILE_NAME_6=17566;Python;0;EUTF-8;1;1;0;%2Fhome%2Fnerzhul%2FDevel%2Fpygmail%2FGnomeHTMLTextView.py;0;4
 
 [VTE]
 last_dir=/home/nerzhul
