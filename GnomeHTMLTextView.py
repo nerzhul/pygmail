@@ -63,178 +63,6 @@ class HtmlHandler(xml.sax.handler.ContentHandler):
         self.styles = [] # a gtk.TextTag or None, for each span level
         self.list_counters = [] # stack (top at head) of list
                                 # counters, or None for unordered list
-
-    def _parse_style_color(self, tag, value):
-        color = _parse_css_color(value)
-        tag.set_property("foreground-gdk", color)
-
-    def _parse_style_background_color(self, tag, value):
-        color = _parse_css_color(value)
-        tag.set_property("background-gdk", color)
-        tag.set_property("paragraph-background-gdk", color)
-
-
-    if gobject.pygtk_version >= (2, 8, 1):
-
-        def _get_current_attributes(self):
-            attrs = self.textview.get_default_attributes()
-            self.iter.backward_char()
-            self.iter.get_attributes(attrs)
-            self.iter.forward_char()
-            return attrs
-        
-    else:
-        
-        ## Workaround http://bugzilla.gnome.org/show_bug.cgi?id=317455
-        def _get_current_style_attr(self, propname, comb_oper=None):
-            tags = [tag for tag in self.styles if tag is not None]
-            tags.reverse()
-            is_set_name = propname + "-set"
-            value = None
-            for tag in tags:
-                if tag.get_property(is_set_name):
-                    if value is None:
-                        value = tag.get_property(propname)
-                        if comb_oper is None:
-                            return value
-                    else:
-                        value = comb_oper(value, tag.get_property(propname))
-            return value
-
-        class _FakeAttrs(object):
-            __slots__ = ("font", "font_scale")
-
-        def _get_current_attributes(self):
-            attrs = self._FakeAttrs()
-            attrs.font_scale = self._get_current_style_attr("scale",
-                                                            operator.mul)
-            if attrs.font_scale is None:
-                attrs.font_scale = 1.0
-            attrs.font = self._get_current_style_attr("font-desc")
-            if attrs.font is None:
-                attrs.font = self.textview.style.font_desc
-            return attrs
-
-
-    def __parse_length_frac_size_allocate(self, textview, allocation,
-                                          frac, callback, args):
-        callback(allocation.width*frac, *args)
-
-    def _parse_length(self, value, font_relative, callback, *args):
-        '''Parse/calc length, converting to pixels, calls callback(length, *args)
-        when the length is first computed or changes'''
-        if value.endswith('%'):
-            frac = float(value[:-1])/100
-            if font_relative:
-                attrs = self._get_current_attributes()
-                font_size = attrs.font.get_size() / pango.SCALE
-                callback(frac*display_resolution*font_size, *args)
-            else:
-                ## CSS says "Percentage values: refer to width of the closest
-                ##           block-level ancestor"
-                ## This is difficult/impossible to implement, so we use
-                ## textview width instead; a reasonable approximation..
-                alloc = self.textview.get_allocation()
-                self.__parse_length_frac_size_allocate(self.textview, alloc,
-                                                       frac, callback, args)
-                self.textview.connect("size-allocate",
-                                      self.__parse_length_frac_size_allocate,
-                                      frac, callback, args)
-
-        elif value.endswith('pt'): # points
-            callback(float(value[:-2])*display_resolution, *args)
-
-        elif value.endswith('em'): # ems, the height of the element's font
-            attrs = self._get_current_attributes()
-            font_size = attrs.font.get_size() / pango.SCALE
-            callback(float(value[:-2])*display_resolution*font_size, *args)
-
-        elif value.endswith('ex'): # x-height, ~ the height of the letter 'x'
-            ## FIXME: figure out how to calculate this correctly
-            ##        for now 'em' size is used as approximation
-            attrs = self._get_current_attributes()
-            font_size = attrs.font.get_size() / pango.SCALE
-            callback(float(value[:-2])*display_resolution*font_size, *args)
-
-        elif value.endswith('px'): # pixels
-            callback(int(value[:-2]), *args)
-
-        else:
-            warnings.warn("Unable to parse length value '%s'" % value)
-        
-    def __parse_font_size_cb(length, tag):
-        tag.set_property("size-points", length/display_resolution)
-    __parse_font_size_cb = staticmethod(__parse_font_size_cb)
-
-    def _parse_style_font_size(self, tag, value):
-        try:
-            scale = {
-                "xx-small": pango.SCALE_XX_SMALL,
-                "x-small": pango.SCALE_X_SMALL,
-                "small": pango.SCALE_SMALL,
-                "medium": pango.SCALE_MEDIUM,
-                "large": pango.SCALE_LARGE,
-                "x-large": pango.SCALE_X_LARGE,
-                "xx-large": pango.SCALE_XX_LARGE,
-                } [value]
-        except KeyError:
-            pass
-        else:
-            attrs = self._get_current_attributes()
-            tag.set_property("scale", scale / attrs.font_scale)
-            return
-        if value == 'smaller':
-            tag.set_property("scale", pango.SCALE_SMALL)
-            return
-        if value == 'larger':
-            tag.set_property("scale", pango.SCALE_LARGE)
-            return
-        self._parse_length(value, True, self.__parse_font_size_cb, tag)
-
-    def _parse_style_font_style(self, tag, value):
-        try:
-            style = {
-                "normal": pango.STYLE_NORMAL,
-                "italic": pango.STYLE_ITALIC,
-                "oblique": pango.STYLE_OBLIQUE,
-                } [value]
-        except KeyError:
-            warnings.warn("unknown font-style %s" % value)
-        else:
-            tag.set_property("style", style)
-
-    def __frac_length_tag_cb(length, tag, propname):
-        tag.set_property(propname, length)
-    __frac_length_tag_cb = staticmethod(__frac_length_tag_cb)
-        
-    def _parse_style_margin_left(self, tag, value):
-        self._parse_length(value, False, self.__frac_length_tag_cb,
-                           tag, "left-margin")
-
-    def _parse_style_margin_right(self, tag, value):
-        self._parse_length(value, False, self.__frac_length_tag_cb,
-                           tag, "right-margin")
-
-    def _parse_style_font_weight(self, tag, value):
-        ## TODO: missing 'bolder' and 'lighter'
-        try:
-            weight = {
-                '100': pango.WEIGHT_ULTRALIGHT,
-                '200': pango.WEIGHT_ULTRALIGHT,
-                '300': pango.WEIGHT_LIGHT,
-                '400': pango.WEIGHT_NORMAL,
-                '500': pango.WEIGHT_NORMAL,
-                '600': pango.WEIGHT_BOLD,
-                '700': pango.WEIGHT_BOLD,
-                '800': pango.WEIGHT_ULTRABOLD,
-                '900': pango.WEIGHT_HEAVY,
-                'normal': pango.WEIGHT_NORMAL,
-                'bold': pango.WEIGHT_BOLD,
-                } [value]
-        except KeyError:
-            warnings.warn("unknown font-style %s" % value)
-        else:
-            tag.set_property("weight", weight)
         
     def characters(self, content):
         if allwhitespace_rx.match(content) is not None:
@@ -248,8 +76,6 @@ class HtmlHandler(xml.sax.handler.ContentHandler):
         if name == 'div':
             if not self.iter.starts_line():
                 self._insert_text("\n")
-        elif name == 'span':
-            pass
         elif name == 'img':
             try:
                 ## Max image size = 10 MB (to try to prevent DoS)
@@ -292,8 +118,6 @@ class HtmlHandler(xml.sax.handler.ContentHandler):
         if name == 'div':
             if not self.iter.starts_line():
                 self._insert_text("\n")
-        elif name == 'span':
-            pass
         elif name == 'img':
             pass
         elif name == 'body':
@@ -378,17 +202,110 @@ class MyHTMLParser(HTMLParser.HTMLParser):
 		self.list_counters = [] # stack (top at head) of list
 								# counters, or None for unordered list
 	
-	## build a dictionary mapping styles to methods, for greater speed
-	__style_methods = dict()
-	for style in ["background-color", "color", "font-family", "font-size",
-			"font-style", "font-weight", "margin-left", "margin-right",
-			"text-align", "text-decoration"]:
-		try:
-			method = locals()["_parse_style_%s" % style.replace('-', '_')]
-		except KeyError:
-			warnings.warn("Style attribute '%s' not yet implemented" % style)
+	def _get_current_attributes(self):
+		attrs = self._textView.get_default_attributes()
+		self._iter.backward_char()
+		self._iter.get_attributes(attrs)
+		self._iter.forward_char()
+		return attrs
+		
+	def __parse_length_frac_size_allocate(self, textview, allocation,
+			frac, callback, args):
+		callback(allocation.width*frac, *args)
+
+	def _parse_length(self, value, font_relative, callback, *args):
+		'''Parse/calc length, converting to pixels, calls callback(length, *args)
+		when the length is first computed or changes'''
+		if value.endswith('%'):
+			frac = float(value[:-1])/100
+			if font_relative:
+				attrs = self._get_current_attributes()
+				font_size = attrs.font.get_size() / pango.SCALE
+				callback(frac*display_resolution*font_size, *args)
+			else:
+				## CSS says "Percentage values: refer to width of the closest
+				##           block-level ancestor"
+				## This is difficult/impossible to implement, so we use
+				## textview width instead; a reasonable approximation..
+				alloc = self._textView.get_allocation()
+				self.__parse_length_frac_size_allocate(self._textView, alloc,
+						frac, callback, args)
+				self._textView.connect("size-allocate",
+				self.__parse_length_frac_size_allocate,
+						frac, callback, args)
+
+		elif value.endswith('pt'): # points
+			callback(float(value[:-2])*display_resolution, *args)
+
+		elif value.endswith('em'): # ems, the height of the element's font
+			attrs = self._get_current_attributes()
+			font_size = attrs.font.get_size() / pango.SCALE
+			callback(float(value[:-2])*display_resolution*font_size, *args)
+
+		elif value.endswith('ex'): # x-height, ~ the height of the letter 'x'
+			## FIXME: figure out how to calculate this correctly
+			##        for now 'em' size is used as approximation
+			attrs = self._get_current_attributes()
+			font_size = attrs.font.get_size() / pango.SCALE
+			callback(float(value[:-2])*display_resolution*font_size, *args)
+
+		elif value.endswith('px'): # pixels
+			callback(int(value[:-2]), *args)
+
 		else:
-			__style_methods[style] = method
+			warnings.warn("Unable to parse length value '%s'" % value)
+        
+	def __parse_font_size_cb(length, tag):
+		tag.set_property("size-points", length/display_resolution)
+        
+	__parse_font_size_cb = staticmethod(__parse_font_size_cb)
+
+	def _parse_style_font_size(self, tag, value):
+		try:
+			scale = {
+				"xx-small": pango.SCALE_XX_SMALL,
+				"x-small": pango.SCALE_X_SMALL,
+				"small": pango.SCALE_SMALL,
+				"medium": pango.SCALE_MEDIUM,
+				"large": pango.SCALE_LARGE,
+				"x-large": pango.SCALE_X_LARGE,
+				"xx-large": pango.SCALE_XX_LARGE,
+			} [value]
+		except KeyError:
+			pass
+		else:
+			attrs = self._get_current_attributes()
+			tag.set_property("scale", scale / attrs.font_scale)
+			return
+		if value == 'smaller':
+			tag.set_property("scale", pango.SCALE_SMALL)
+			return
+		if value == 'larger':
+			tag.set_property("scale", pango.SCALE_LARGE)
+			return
+		self._parse_length(value, True, self.__parse_font_size_cb, tag)
+
+	def __frac_length_tag_cb(length, tag, propname):
+		tag.set_property(propname, length)
+        
+	__frac_length_tag_cb = staticmethod(__frac_length_tag_cb)
+        
+	def _parse_style_margin_left(self, tag, value):
+		self._parse_length(value, False, self.__frac_length_tag_cb,
+			tag, "left-margin")
+
+	def _parse_style_margin_right(self, tag, value):
+		self._parse_length(value, False, self.__frac_length_tag_cb,
+			tag, "right-margin")
+	
+	def _parse_style_color(self, tag, value):
+		color = _parse_css_color(value)
+		tag.set_property("foreground-gdk", color)
+
+	def _parse_style_background_color(self, tag, value):
+		color = _parse_css_color(value)
+		tag.set_property("background-gdk", color)
+		tag.set_property("paragraph-background-gdk", color)
 	
 	def _parse_style_font_family(self, tag, value):
 		tag.set_property("family", value)
@@ -424,9 +341,54 @@ class MyHTMLParser(HTMLParser.HTMLParser):
 			warnings.warn("text-decoration:blink not implemented")
 		else:
 			warnings.warn("text-decoration:%s not implemented" % value)
+	
+	def _parse_style_font_weight(self, tag, value):
+		## TODO: missing 'bolder' and 'lighter'
+		try:
+			weight = {
+				'100': pango.WEIGHT_ULTRALIGHT,
+				'200': pango.WEIGHT_ULTRALIGHT,
+				'300': pango.WEIGHT_LIGHT,
+				'400': pango.WEIGHT_NORMAL,
+				'500': pango.WEIGHT_NORMAL,
+				'600': pango.WEIGHT_BOLD,
+				'700': pango.WEIGHT_BOLD,
+				'800': pango.WEIGHT_ULTRABOLD,
+				'900': pango.WEIGHT_HEAVY,
+				'normal': pango.WEIGHT_NORMAL,
+				'bold': pango.WEIGHT_BOLD,
+			} [value]
+		except KeyError:
+			warnings.warn("unknown font-style %s" % value)
+		else:
+			tag.set_property("weight", weight)
+	
+	def _parse_style_font_style(self, tag, value):
+		try:
+			style = {
+				"normal": pango.STYLE_NORMAL,
+				"italic": pango.STYLE_ITALIC,
+				"oblique": pango.STYLE_OBLIQUE,
+			} [value]
+		except KeyError:
+			warnings.warn("unknown font-style %s" % value)
+		else:
+			tag.set_property("style", style)
 
 	def _get_style_tags(self):
 		return [tag for tag in self._styles if tag is not None]
+		
+	## build a dictionary mapping styles to methods, for greater speed
+	__style_methods = dict()
+	for style in ["background-color", "color", "font-family", "font-size",
+			"font-style", "font-weight", "margin-left", "margin-right",
+			"text-align", "text-decoration"]:
+		try:
+			method = locals()["_parse_style_%s" % style.replace('-', '_')]
+		except KeyError:
+			warnings.warn("Style attribute '%s' not yet implemented" % style)
+		else:
+			__style_methods[style] = method
 		
 	def _insert_text(self, text):
 		tags = self._get_style_tags()
@@ -463,6 +425,8 @@ class MyHTMLParser(HTMLParser.HTMLParser):
 		if tag == 'p':
 			if not self._iter.starts_line():
 				self._insert_text("\n")
+		elif tag == 'span':
+			pass
 		elif tag == 'br':
 			if not self._iter.starts_line():
 				self._insert_text("\n")
@@ -491,6 +455,8 @@ class MyHTMLParser(HTMLParser.HTMLParser):
 		if tag == 'p':
 			if not self._iter.starts_line():
 				self._insert_text("\n")
+		elif tag == 'span':
+			pass
 		elif tag == 'br':
 			pass
 		elif tag == 'ul':

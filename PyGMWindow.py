@@ -212,25 +212,13 @@ class MainWindow(Gtk.Window):
 		self._maillistListView = Gtk.TreeView(maillistTreeStore)
 
 		# Table columns
-		rendererRead = Gtk.CellRendererText()
-		mlListViewColRead = Gtk.TreeViewColumn("R", rendererRead, text=0)
-		self._maillistListView.append_column(mlListViewColRead)
+		mlListViewCols = [("R",0),("U",1),("De",2),("Objet",3),("Date",4)]
 		
-		rendererUrgent = Gtk.CellRendererText()
-		mlListViewColUrgent = Gtk.TreeViewColumn("U", rendererUrgent, text=1)
-		self._maillistListView.append_column(mlListViewColUrgent)
-		
-		rendererFrom = Gtk.CellRendererText()
-		mlListViewColFrom = Gtk.TreeViewColumn("De", rendererFrom, text=2)
-		self._maillistListView.append_column(mlListViewColFrom)
-		
-		rendererSubject = Gtk.CellRendererText()
-		mlListViewColSubject = Gtk.TreeViewColumn("Objet", rendererSubject, text=3)
-		self._maillistListView.append_column(mlListViewColSubject)
-		
-		renderedDate = Gtk.CellRendererText()
-		mlListViewColDate = Gtk.TreeViewColumn("Date", renderedDate, text=4)
-		self._maillistListView.append_column(mlListViewColDate)
+		for col in mlListViewCols:
+			renderer = Gtk.CellRendererText()
+			mlCol = Gtk.TreeViewColumn(col[0], renderer, text=col[1])
+			mlCol.set_resizable(True)
+			self._maillistListView.append_column(mlCol)
 		
 		# Event handler
 		select = self._maillistListView.get_selection()
