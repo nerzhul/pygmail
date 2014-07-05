@@ -164,9 +164,9 @@ class MainWindowMgr():
 			for idx in range(1,len(mbSplit)):
 				mbName += mbSplit[idx]
 			
-			imapMgr = PyGMIMAPMgr()	
+			imapMgr = PyGMIMAPMgr("load-maillist",{"serverid": serverId, "mailbox": mbName})	
 			imapMgr.setMainWindow(self)
-			imapMgr.loadMailboxMails(serverId,mbName)
+			imapMgr.start()
 		
 	def addElemToMBTreeView(self,parent,el):
 		self.mbTreeViewLock.acquire()
@@ -180,14 +180,19 @@ class MainWindowMgr():
 	
 	def createMaillistTreeView(self):
 		# TreeStore(Unread/Answered, Urgent, From, Subject, Date, Id, mailbox, serverId)
-		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str,str,str,str)
+		maillistTreeStore = Gtk.TreeStore(str,int,str,str,str,str,str,str)
 
 		self.mlTreeViewLock.acquire()
 		self._maillistListView = self._builder.get_object("maillistTreeView")
 		self._maillistListView.set_model(maillistTreeStore)
 
-		# Table columns
-		mlListViewCols = [("R",0),("U",1),("De",2),("Objet",3),("Date",4)]
+		# table columns (icons)
+		renderer = Gtk.CellRendererPixbuf()
+		mlCol = Gtk.TreeViewColumn("R", renderer, stock_id=0)
+		mlCol.set_resizable(True)
+		self._maillistListView.append_column(mlCol)
+		# Table columns (text only)
+		mlListViewCols = [("U",1),("De",2),("Objet",3),("Date",4)]
 		
 		for col in mlListViewCols:
 			renderer = Gtk.CellRendererText()
@@ -211,11 +216,9 @@ class MainWindowMgr():
 		serverId = model[treeiter][7]
 		
 		# we need an imapManager to get the mail
-		imapMgr = PyGMIMAPMgr()
+		imapMgr = PyGMIMAPMgr("load-mail",{"serverid": serverId, "mailbox": mboxName, "mailid": mailId})
 		imapMgr.setMainWindow(self)
-		
-		mailObj = imapMgr.loadMail(serverId,mboxName,mailId)
-		self.setMailViewText(mailObj.getBody(),mailObj.isHTML)
+		imapMgr.start()
 	
 	def addElemToMLTreeView(self,parent,el):
 		self.mbTreeViewLock.acquire()
@@ -266,7 +269,7 @@ class MainWindowMgr():
 		self._headerBar.pack_end(srButton)
 		
 	def onSendReceiveButtonClicked(self,button):
-		imapThread = PyGMIMAPMgr()
+		imapThread = PyGMIMAPMgr("load-mailboxes")
 		imapThread.setMainWindow(self)
 		imapThread.start()
 		

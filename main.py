@@ -30,7 +30,7 @@ if __name__ == '__main__':
 	sqlMgr.Connect()
 	
 	
-	imapThread = PyGMIMAPMgr()
+	imapThread = PyGMIMAPMgr("load-mailboxes")
 	
 	builder = Gtk.Builder()
 	builder.add_from_file("ui/MainWindow.ui")

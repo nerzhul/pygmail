@@ -26,22 +26,26 @@ class IMAPTreeViewType():
 	mailBox = 2
 
 class IMAPMailState():
-	FRESH = 0
-	READ = 1
-	ANSWERED = 2
-	READ_ANSWERED = 3
+	FRESH = "mail-message-new"
+	READ = "mail-mark-read"
+	ANSWERED = "mail-reply-sender"
+	READ_ANSWERED = "mail-reply-sender"
 
 class PyGMIMAPMgr(PyGMThread.Thread):
 	_imapServers = {}
 	_sqlMgr = None
 	_mainWin = None
+	_actionName = ""
+	_actionArgs = {}
 	
 	_IMAPAccountsTable = "imapaccounts"
 	
-	def __init__(self):
+	def __init__(self,actName,actArgs = {}):
 		PyGMThread.Thread.__init__(self)
 		self._sqlMgr = None
 		self._imapServers = {}
+		self._actionName = actName
+		self._actionArgs = actArgs
 		
 	def setMainWindow(self,win):
 		self._mainWin = win
@@ -52,8 +56,14 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		# We need to wait the mainWindow to be ready
 		while self._mainWin.isWindowReady() == False:
 			time.sleep(1)
-			
-		self.loadMailBoxes()
+		
+		if self._actionName == "load-mailboxes":
+			self.loadMailBoxes()
+		elif self._actionName == "load-maillist":
+			self.loadMailboxMails(self._actionArgs["serverid"],self._actionArgs["mailbox"])
+		elif self._actionName == "load-mail":
+			mailObj = self.loadMail(self._actionArgs["serverid"],self._actionArgs["mailbox"],self._actionArgs["mailid"])
+			self._mainWin.setMailViewText(mailObj.getBody(),mailObj.isHTML)
 		
 	def loadMailBoxes(self):
 		# Connect to SQLite DB
@@ -115,7 +125,8 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 				urgentState = 0
 				if "\Flagged" in mailList[mailId]["flags"]:
 					urgentState = 1
-				mailIter = self._mainWin.addElemToMLTreeView(None,[readAnsweredState,urgentState,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate(),mailId,mbName,serverId])
+				
+				mailIter = self._mainWin.addElemToMLTreeView(None,["%s" % readAnsweredState,urgentState,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate(),mailId,mbName,serverId])
 				#emailMsg.Save()
 		
 		self._mainWin.removeFooterText()
