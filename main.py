@@ -2,7 +2,7 @@
 
 from gi.repository import Gtk
 
-from PyGMWindow import MainWindow
+from PyGMWindow import MainWindowMgr
 from PyGMConfig import PyGMailConfig
 from PyGMSQL import PyGMSQLiteMgr
 from PyGMIMAP import PyGMIMAPMgr
@@ -29,13 +29,18 @@ if __name__ == '__main__':
 	sqlMgr = PyGMSQLiteMgr()
 	sqlMgr.Connect()
 	
-	imapThread = PyGMIMAPMgr()
-	win = MainWindow(sqlMgr)
 	
-	imapThread.setMainWindow(win)
+	imapThread = PyGMIMAPMgr()
+	
+	builder = Gtk.Builder()
+	builder.add_from_file("ui/MainWindow.ui")
+	win = builder.get_object("MainWindow")
+	winMgr = MainWindowMgr(builder,win,sqlMgr)
+	
+	imapThread.setMainWindow(winMgr)
 	imapThread.start()
 	
 	win.show_all()
-	win.addThreadToKill(imapThread)
+	winMgr.addThreadToKill(imapThread)
 	Gtk.main()
 

@@ -178,14 +178,13 @@ class HtmlTextView(Gtk.TextView):
 		buffer.set_text("")
 		eob = buffer.get_start_iter()
 		html = HTMLParser.HTMLParser().unescape(html)
-		print html
-		MyHTMLParser(self,eob).feed(html)
-		#parser.parse(StringIO("<body>%s</body>" % html))
+		#print html
+		PyGmailHTMLParser(self,eob).feed(html)
 
 		if not eob.starts_line():
 			buffer.insert(eob, "\n")
 
-class MyHTMLParser(HTMLParser.HTMLParser):
+class PyGmailHTMLParser(HTMLParser.HTMLParser):
 	_textView = None
 	_textBuffer = None
 	_iter = None

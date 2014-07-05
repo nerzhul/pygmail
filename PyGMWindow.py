@@ -25,8 +25,10 @@ import PyGMMail
 import threading, re
 import GnomeHTMLTextView
 
-class MainWindow(Gtk.Window):
+class MainWindowMgr():
 	# Interface stores
+	_builder = None
+	_window = None
 	myGrid = None
 	leftGrid = None
 	rightGrid = None
@@ -56,9 +58,9 @@ class MainWindow(Gtk.Window):
 	_sqlMgr = None
 	_toKillThreads = []
 	
-	def __init__(self,sqlMgr):
-		Gtk.Window.__init__(self, title=PyGMailConfig.getAppNameAndVersion())
-		
+	def __init__(self,builder,window,sqlMgr):
+		self._builder = builder
+		self._window = window
 		self._sqlMgr = sqlMgr
 		
 		# Init mutexes
@@ -69,32 +71,30 @@ class MainWindow(Gtk.Window):
 		self.footerLock = threading.Lock()
 
 		# Window options
-		self.set_border_width(10)
-		self.set_default_size(800, 400)
+		self._window.set_title(PyGMailConfig.getAppNameAndVersion())
+		self._window.set_border_width(10)
+		self._window.set_default_size(800, 400)
 
 		# First, create the header bar
 		self.createHeaderBar()
 
 		# Create the main wrapper
+		"""
 		self.mainWrapper = Gtk.Grid()
 		self.add(self.mainWrapper)
-
+		"""
 		# Now the component grid
-		self.myGrid = Gtk.Grid()
-		self.myGrid.set_border_width(5)
-		self.leftGrid = Gtk.Grid()
-		self.leftGrid.set_border_width(5)
-		self.rightGrid = Gtk.Grid()
-		self.rightGrid.set_border_width(5)
-		self._footerBar = Gtk.Statusbar()
+		self._footerBar = self._builder.get_object("mwStatusBar")
 		self._footerBar.set_border_width(0)
 
 		# Attach the components to the main Grid
+		"""
 		self.mainWrapper.attach(self.myGrid,0,1,1,1)
 		self.mainWrapper.attach(self._footerBar,0,2,1,1)
 		
 		self.myGrid.attach(self.leftGrid,0,1,1,1)
 		self.myGrid.attach(self.rightGrid,2,1,1,1)
+		"""
 		self.setFooterText("Initialization in progress...")
 
 		self.createMailboxTreeView()
@@ -102,7 +102,7 @@ class MainWindow(Gtk.Window):
 		self.createMailView()
 
 		# Events
-		self.connect("delete-event", self.closeWindow)
+		self._window.connect("delete-event", self.closeWindow)
 
 		# Complete
 		self._footerBar.show()
@@ -158,7 +158,8 @@ class MainWindow(Gtk.Window):
 		mailboxTreeStore = Gtk.TreeStore(str,int,str)
 
 		self.mbTreeViewLock.acquire()
-		self._mailboxTreeView = Gtk.TreeView(mailboxTreeStore)
+		#self._mailboxTreeView = Gtk.TreeView(mailboxTreeStore)
+		self._mailboxTreeView = self._builder.get_object("mailboxTreeView")
 		
 		# Table columns
 		renderer = Gtk.CellRendererText()
@@ -172,6 +173,7 @@ class MainWindow(Gtk.Window):
 		self.mbTreeViewLock.release()
 		
 		# Attach elements to grid
+		"""
 		mbtvScroll = Gtk.ScrolledWindow()
 		mbtvScroll.add(self._mailboxTreeView)
 		mbtvScroll.set_hexpand(True)
@@ -179,6 +181,7 @@ class MainWindow(Gtk.Window):
 		mbtvScroll.set_property("hscrollbar-policy", Gtk.PolicyType.AUTOMATIC)
 		
 		self.leftGrid.attach(mbtvScroll,1,0,1,1)
+		"""
 
 	def onMailboxSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
@@ -209,7 +212,8 @@ class MainWindow(Gtk.Window):
 		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str,str,str,str)
 
 		self.mlTreeViewLock.acquire()
-		self._maillistListView = Gtk.TreeView(maillistTreeStore)
+		#self._maillistListView = Gtk.TreeView(maillistTreeStore)
+		self._maillistListView = self._builder.get_object("maillistTreeView")
 
 		# Table columns
 		mlListViewCols = [("R",0),("U",1),("De",2),("Objet",3),("Date",4)]
@@ -227,6 +231,7 @@ class MainWindow(Gtk.Window):
 		self.mlTreeViewLock.release()
 		
 		# Attach elements to grid
+		"""
 		mltvScroll = Gtk.ScrolledWindow()
 		mltvScroll.add(self._maillistListView)
 		mltvScroll.set_hexpand(True)
@@ -235,6 +240,7 @@ class MainWindow(Gtk.Window):
 		mltvScroll.set_border_width(5)
 		
 		self.rightGrid.attach(mltvScroll,1,0,1,1)
+		"""
 	
 	def onMaillistSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
@@ -268,17 +274,18 @@ class MainWindow(Gtk.Window):
 	"""
 		
 	def createMailView(self):
+		"""
 		mailScroll = Gtk.ScrolledWindow()
 		mailScroll.set_hexpand(True)
 		mailScroll.set_vexpand(True)
 	
-		#self._mailTextView = Gtk.TextView()
 		self._mailTextView = GnomeHTMLTextView.HtmlTextView()
 		
 		mailScroll.add(self._mailTextView)
 		self.rightGrid.attach(mailScroll,1,1,1,1)
 		
 		mailScroll.set_border_width(5)
+		"""
 	
 	def setMailViewText(self,_text,_html = False):
 		self.mTextViewLock.acquire()
@@ -296,7 +303,7 @@ class MainWindow(Gtk.Window):
 		self._headerBar = Gtk.HeaderBar()
 		self._headerBar.props.show_close_button = True
 		self._headerBar.props.title = PyGMailConfig.getAppNameAndVersion()
-		self.set_titlebar(self._headerBar)
+		self._window.set_titlebar(self._headerBar)
 		
 		# Send/Receive button
 		srButton = Gtk.Button()
