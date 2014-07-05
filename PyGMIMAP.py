@@ -25,6 +25,12 @@ class IMAPTreeViewType():
 	account = 1
 	mailBox = 2
 
+class IMAPMailState():
+	FRESH = 0
+	READ = 1
+	ANSWERED = 2
+	READ_ANSWERED = 3
+
 class PyGMIMAPMgr(PyGMThread.Thread):
 	_imapServers = {}
 	_sqlMgr = None
@@ -87,7 +93,7 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		
 		imapServer = self._imapServers[serverId]
 		if imapServer.Load(serverId) == 0 and imapServer.Connect() == 0 and imapServer.Login() == 0:
-			mailList = imapServer.getMailsFromMailbox(mbName,True)
+			mailList = imapServer.getMailHeadersFromMailbox(mbName)
 			
 			# we clear the treeview only if connection to server succeed
 			self._mainWin.clearMLTreeView()
@@ -95,11 +101,21 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 			# Now we get the mails and store it into our mailList
 			for mailId in mailList:
 				# Load mail 
-				emailMsg = PyGMMail.PyGMEmail(mailList[mailId],self._sqlMgr)
+				emailMsg = PyGMMail.PyGMEmail(mailList[mailId]["data"],self._sqlMgr)
 				emailMsg._mailId = mailId
 				emailMsg._mailbox = mbName
 				emailMsg._serverId = serverId
-				mailIter = self._mainWin.addElemToMLTreeView(None,[1,2,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate(),mailId,mbName,serverId])
+				
+				readAnsweredState = IMAPMailState().FRESH
+				if "\Seen" in mailList[mailId]["flags"]:
+					if "\Answered" in mailList[mailId]["flags"]:
+						readAnsweredState = IMAPMailState().READ_ANSWERED
+					else:
+						readAnsweredState = IMAPMailState().READ
+				urgentState = 0
+				if "\Flagged" in mailList[mailId]["flags"]:
+					urgentState = 1
+				mailIter = self._mainWin.addElemToMLTreeView(None,[readAnsweredState,urgentState,emailMsg.getFrom(),emailMsg.getSubject(),emailMsg.getDate(),mailId,mbName,serverId])
 				#emailMsg.Save()
 		
 		self._mainWin.removeFooterText()
@@ -121,8 +137,8 @@ class PyGMIMAPMgr(PyGMThread.Thread):
 		self._mainWin.setFooterText("Loading mail %s from mailbox %s" % (mailId,mbName))
 		
 		if imapServer.Load(serverId) == 0 and imapServer.Connect() == 0 and imapServer.Login() == 0:
-			mailList = imapServer.getMailsFromMailbox(mbName,False,mailId)
-			emailMsg = PyGMMail.PyGMEmail(mailList[mailId],self._sqlMgr)
+			mailList = imapServer.getMailsFromMailbox(mbName,mailId)
+			emailMsg = PyGMMail.PyGMEmail(mailList[mailId]["data"],self._sqlMgr)
 			emailMsg._mailId = mailId
 			emailMsg._mailbox = mbName
 			emailMsg._serverId = serverId
@@ -323,8 +339,8 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 			return None
 		
 		return mbList[1]
-		
-	def getMailsFromMailbox(self,mbName,headerOnly = False, uidList = None):
+	
+	def getMailsFromMailbox(self,mbName,uidList = None,fetchOptions = None):
 		try:
 			self._imapConn.select(mbName)
 		except imaplib.IMAP4.error, e:
@@ -346,43 +362,25 @@ class IMAPServer(PyGMSQL.PyGMDBObj):
 		mailList = {}
 		for mailId in mailIdList:
 			# If filter is set to false, only get headers
-			imapFilter = "(RFC822)"
-			if headerOnly == True:
-				imapFilter = "(BODY[HEADER])"
+			if fetchOptions == None:
+				fetchOptions = "(FLAGS BODY.PEEK[])"
 			
-			result, data = self._imapConn.uid('fetch', mailId, imapFilter)
+			result, data = self._imapConn.uid('fetch', mailId, fetchOptions)
 			if result != "OK":
 				self.logCritical("getMailsFromMailbox. Fetching mailid %s returned %s" % (mailId,result))
 			else:
-				# Get mail flags
-				result, flagsData = self._imapConn.uid('fetch', mailId, "(FLAGS)")
-				print flagsData[0]
-				if re.match("\\Seen",flagsData[0]):
-					print "SEEN !!"
-				mailList[mailId] = data[0][1]
+				imapFlagsFound = re.search("FLAGS \((.*)\) ",data[0][0])
+				if imapFlagsFound != None:
+					imapFlagsFound = re.sub("FLAGS \(","",imapFlagsFound.group(0))
+					imapFlagsFound = re.sub("\) ","",imapFlagsFound)
+					imapFlagsFound = re.split(" ",imapFlagsFound)
+				mailList[mailId] = {"data": data[0][1], "flags": imapFlagsFound}
 		
 		return mailList
-	
-	def getUnreadMailsFromMailbox(self,mbName):
-		try:
-			self._imapConn.select(mbName)
-		except imaplib.IMAP4.error, e:
-			self.logCritical(e)
-			return None
-		
-		result, data = self._imapConn.uid('search', None, "(UNSEEN)")
-		if result != "OK":
-			self.logCritical("getUnreadMailsFromMailbox returned %s" % result)
-			return None
-		
-		mailIdList = data[0].split()
 
-		mailList = {}
-		for mailId in mailIdList:
-			result, data = self._imapConn.uid('fetch', mailId, '(RFC822)')
-			if result != "OK":
-				self.logCritical("getUnreadMailsFromMailbox. Fetching mailid %s returned %s" % (mailId,result))
-			else:
-				mailList[mailId] = data[0][1]
-		
-		return mailList
+	"""
+	getMailsFromMailbox helpers
+	"""
+	
+	def getMailHeadersFromMailbox(self,mbName,uidList = None):
+		return self.getMailsFromMailbox(mbName,uidList,"(FLAGS BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])")

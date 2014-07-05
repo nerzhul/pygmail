@@ -179,7 +179,7 @@ class MainWindowMgr():
 	"""
 	
 	def createMaillistTreeView(self):
-		# TreeStore(Label,LeafType,Value (serverId or real IMAP Path))
+		# TreeStore(Unread/Answered, Urgent, From, Subject, Date, Id, mailbox, serverId)
 		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str,str,str,str)
 
 		self.mlTreeViewLock.acquire()
