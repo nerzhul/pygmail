@@ -29,10 +29,6 @@ class MainWindowMgr():
 	# Interface stores
 	_builder = None
 	_window = None
-	myGrid = None
-	leftGrid = None
-	rightGrid = None
-	mainWrapper = None
 	_headerBar = None
 	
 	# mailbox list
@@ -78,23 +74,9 @@ class MainWindowMgr():
 		# First, create the header bar
 		self.createHeaderBar()
 
-		# Create the main wrapper
-		"""
-		self.mainWrapper = Gtk.Grid()
-		self.add(self.mainWrapper)
-		"""
 		# Now the component grid
 		self._footerBar = self._builder.get_object("mwStatusBar")
-		self._footerBar.set_border_width(0)
 
-		# Attach the components to the main Grid
-		"""
-		self.mainWrapper.attach(self.myGrid,0,1,1,1)
-		self.mainWrapper.attach(self._footerBar,0,2,1,1)
-		
-		self.myGrid.attach(self.leftGrid,0,1,1,1)
-		self.myGrid.attach(self.rightGrid,2,1,1,1)
-		"""
 		self.setFooterText("Initialization in progress...")
 
 		self.createMailboxTreeView()
@@ -158,8 +140,8 @@ class MainWindowMgr():
 		mailboxTreeStore = Gtk.TreeStore(str,int,str)
 
 		self.mbTreeViewLock.acquire()
-		#self._mailboxTreeView = Gtk.TreeView(mailboxTreeStore)
 		self._mailboxTreeView = self._builder.get_object("mailboxTreeView")
+		self._mailboxTreeView.set_model(mailboxTreeStore)
 		
 		# Table columns
 		renderer = Gtk.CellRendererText()
@@ -171,17 +153,6 @@ class MainWindowMgr():
 		select.connect("changed", self.onMailboxSelectionChanged)
 		
 		self.mbTreeViewLock.release()
-		
-		# Attach elements to grid
-		"""
-		mbtvScroll = Gtk.ScrolledWindow()
-		mbtvScroll.add(self._mailboxTreeView)
-		mbtvScroll.set_hexpand(True)
-		mbtvScroll.set_vexpand(True)
-		mbtvScroll.set_property("hscrollbar-policy", Gtk.PolicyType.AUTOMATIC)
-		
-		self.leftGrid.attach(mbtvScroll,1,0,1,1)
-		"""
 
 	def onMailboxSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
@@ -212,8 +183,8 @@ class MainWindowMgr():
 		maillistTreeStore = Gtk.TreeStore(int,int,str,str,str,str,str,str)
 
 		self.mlTreeViewLock.acquire()
-		#self._maillistListView = Gtk.TreeView(maillistTreeStore)
 		self._maillistListView = self._builder.get_object("maillistTreeView")
+		self._maillistListView.set_model(maillistTreeStore)
 
 		# Table columns
 		mlListViewCols = [("R",0),("U",1),("De",2),("Objet",3),("Date",4)]
@@ -229,18 +200,6 @@ class MainWindowMgr():
 		select.connect("changed", self.onMaillistSelectionChanged)
 		
 		self.mlTreeViewLock.release()
-		
-		# Attach elements to grid
-		"""
-		mltvScroll = Gtk.ScrolledWindow()
-		mltvScroll.add(self._maillistListView)
-		mltvScroll.set_hexpand(True)
-		mltvScroll.set_vexpand(True)
-		
-		mltvScroll.set_border_width(5)
-		
-		self.rightGrid.attach(mltvScroll,1,0,1,1)
-		"""
 	
 	def onMaillistSelectionChanged(self,selection):
 		model, treeiter = selection.get_selected()
@@ -274,18 +233,11 @@ class MainWindowMgr():
 	"""
 		
 	def createMailView(self):
-		"""
-		mailScroll = Gtk.ScrolledWindow()
-		mailScroll.set_hexpand(True)
-		mailScroll.set_vexpand(True)
-	
+		mailContainer = self._builder.get_object("mailviewContainer")
 		self._mailTextView = GnomeHTMLTextView.HtmlTextView()
-		
-		mailScroll.add(self._mailTextView)
-		self.rightGrid.attach(mailScroll,1,1,1,1)
-		
-		mailScroll.set_border_width(5)
-		"""
+		self._mailTextView.set_left_margin(10)
+		self._mailTextView.set_right_margin(10)
+		mailContainer.add(self._mailTextView)
 	
 	def setMailViewText(self,_text,_html = False):
 		self.mTextViewLock.acquire()
